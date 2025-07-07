@@ -1,0 +1,29 @@
+[package]
+name = "radius-protocol"
+version = "0.1.0"
+edition = "2024"
+authors = ["Abel W. Shimeles <abel.wen07@gmail.com>"]
+description = "Runtime Agnostic async client/server implementation for radius protocol"
+keywords = ["async", "radius"]
+readme = "README.md"
+
+[workspace]
+resolver = "3"
+members = [ "client", "server", "rt", "core"]
+
+[features]
+# Runtime support features
+default = ["tokio"]
+tokio = ["rt/tokio"]
+smol = ["rt/smol"]
+
+# Client and server logical features
+client = []
+server = []
+
+
+[dependencies]
+rt = { path = "rt" }
+client = { path = "client" }
+server = { path = "server"}
+core = { path = "core" }

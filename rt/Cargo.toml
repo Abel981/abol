@@ -1,0 +1,9 @@
+[package]
+name = "rt"
+version = "0.1.0"
+edition = "2024"
+
+
+[dependencies]
+tokio = { version = "1", optional = true, features=["rt","time"] }
+smol = { version = "2", optional = true}
