@@ -13,7 +13,7 @@ members = [ "client", "server", "rt" ]
 
 [features]
 # Runtime support features
-default = ["tokio"]
+default = ["tokio","client", "server"]
 tokio = ["rt/tokio"]
 smol = ["rt/smol"]
 
