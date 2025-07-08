@@ -5,5 +5,7 @@ edition = "2024"
 
 
 [dependencies]
-tokio = { version = "1", optional = true, features=["rt","time"] }
+tokio = { version = "1", optional = true, features=["rt","time", "net"] }
 smol = { version = "2", optional = true}
+async-trait = "0.1.88"
+anyhow = "1.0"

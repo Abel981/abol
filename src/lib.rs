@@ -6,6 +6,4 @@ pub mod server {
     pub use server::*;
 }
 
- mod core {
-
-}
+mod core {}
