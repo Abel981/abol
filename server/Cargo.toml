@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+rt = {path = "../rt"}
+radius_core = { package="core", path = "../core" }
+anyhow = "1.0"
