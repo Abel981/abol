@@ -62,9 +62,35 @@ impl Attributes {
         self.add(key, value);
     }
     pub fn encode_to(&self, buf: &mut [u8]) -> Result<(), AttributeParseError> {
-        unimplemented!()
+        let mut offset: usize = 0;
+        for attr in &self.0 {
+            let value_len = attr.value.len();
+            if value_len > 253 {
+                return Err(AttributeParseError::InvalidLength((value_len + 2) as u8));
+            }
+            let avp_size = 2 + value_len;
+            let next_offset = offset + avp_size;
+            if next_offset > buf.len() {
+                return Err(AttributeParseError::ShortBuffer);
+        }
+        let avp_slice = &mut buf[offset..next_offset];
+        avp_slice[0] = attr.attribute_type;
+        avp_slice[1] = avp_size as u8;
+        avp_slice[2..].copy_from_slice(&attr.value);
+        offset = next_offset;
     }
+    Ok(())
+}
+
     pub fn encoded_len(&self) -> Result<usize, AttributeParseError> {
-        unimplemented!()
+        let mut total_len = 0;
+        for attr in &self.0 {
+            let value_len = attr.value.len();
+            if value_len > 253 {
+                return Err(AttributeParseError::InvalidLength((value_len + 2) as u8));
+            }
+            total_len += 2 + value_len;
+        }
+        Ok(total_len)
     }
 }
