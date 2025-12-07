@@ -72,15 +72,15 @@ impl Attributes {
             let next_offset = offset + avp_size;
             if next_offset > buf.len() {
                 return Err(AttributeParseError::ShortBuffer);
+            }
+            let avp_slice = &mut buf[offset..next_offset];
+            avp_slice[0] = attr.attribute_type;
+            avp_slice[1] = avp_size as u8;
+            avp_slice[2..].copy_from_slice(&attr.value);
+            offset = next_offset;
         }
-        let avp_slice = &mut buf[offset..next_offset];
-        avp_slice[0] = attr.attribute_type;
-        avp_slice[1] = avp_size as u8;
-        avp_slice[2..].copy_from_slice(&attr.value);
-        offset = next_offset;
+        Ok(())
     }
-    Ok(())
-}
 
     pub fn encoded_len(&self) -> Result<usize, AttributeParseError> {
         let mut total_len = 0;

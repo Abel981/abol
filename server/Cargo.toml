@@ -7,3 +7,5 @@ edition = "2024"
 rt = {path = "../rt"}
 radius_core = { package="core", path = "../core" }
 anyhow = "1.0"
+async-trait = "0.1.88"
+

@@ -32,4 +32,16 @@ impl UdpSocket {
             UdpSocket::SmolUdpSocket(socket) => socket.recv_from(buf).await.map_err(Into::into),
         }
     }
+    pub async fn send_to(&self, buf: &[u8], target: std::net::SocketAddr) -> anyhow::Result<usize> {
+        match self {
+            #[cfg(feature = "tokio")]
+            UdpSocket::TokioUdpSocket(socket) => {
+                socket.send_to(buf, target).await.map_err(Into::into)
+            }
+            #[cfg(feature = "smol")]
+            UdpSocket::SmolUdpSocket(socket) => {
+                socket.send_to(buf, target).await.map_err(Into::into)
+            }
+        }
+    }
 }

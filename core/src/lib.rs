@@ -1,7 +1,6 @@
 pub mod attribute;
 pub mod packet;
 use crate::packet::{Packet, PacketParseError};
-use async_trait::async_trait;
 use core::fmt;
 use std::{
     convert::TryFrom,
@@ -10,9 +9,9 @@ use std::{
 };
 pub type HandlerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 pub struct Request {
-    local_addr: String,
-    remote_addr: String,
-    packet: Packet,
+    pub local_addr: String,
+    pub remote_addr: String,
+    pub packet: Packet,
 }
 pub struct Response {
     pub packet: Packet,
@@ -24,23 +23,6 @@ impl Response {
     }
 }
 
-#[async_trait]
-pub trait Handler: Send + Sync + 'static {
-    async fn listen_and_serve(&self, request: Request) -> HandlerResult<Response>;
-}
-
-pub struct HandlerFn<F>(pub F);
-
-#[async_trait]
-impl<F, Fut> Handler for HandlerFn<F>
-where
-    F: Fn(Request) -> Fut + Send + Sync + 'static,
-    Fut: std::future::Future<Output = HandlerResult<Response>> + Send + 'static,
-{
-    async fn listen_and_serve(&self, request: Request) -> HandlerResult<Response> {
-        (self.0)(request).await
-    }
-}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Code {
     AccessRequest = 1,
