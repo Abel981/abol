@@ -93,4 +93,39 @@ impl Attributes {
         }
         Ok(total_len)
     }
+
+    pub fn get_vsa_attribute(&self, vendor_id: u32, vendor_type: u8) -> Option<&[u8]> {
+        for avp in &self.0 {
+            if avp.attribute_type == 26 && avp.value.len() >= 6 {
+                let v_id =
+                    u32::from_be_bytes([avp.value[0], avp.value[1], avp.value[2], avp.value[3]]);
+                let v_type = avp.value[4];
+
+                if v_id == vendor_id && v_type == vendor_type {
+                    return Some(&avp.value[6..]);
+                }
+            }
+        }
+        None
+    }
+    pub fn set_vsa_attribute(&mut self, vendor_id: u32, vendor_type: u8, value: AttributeValue) {
+        self.0.retain(|avp| {
+            if avp.attribute_type != 26 || avp.value.len() < 6 {
+                return true;
+            }
+            let v_id = u32::from_be_bytes([avp.value[0], avp.value[1], avp.value[2], avp.value[3]]);
+            let v_type = avp.value[4];
+            !(v_id == vendor_id && v_type == vendor_type)
+        });
+
+        let mut vsa_value = Vec::with_capacity(6 + value.len());
+        vsa_value.extend_from_slice(&vendor_id.to_be_bytes());
+        vsa_value.push(vendor_type);
+        vsa_value.push((2 + value.len()) as u8);
+        vsa_value.extend_from_slice(&value);
+        self.0.push(Avp {
+            attribute_type: 26,
+            value: vsa_value,
+        });
+    }
 }

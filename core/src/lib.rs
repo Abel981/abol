@@ -24,7 +24,7 @@ impl Response {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Code {
+pub enum Code {
     AccessRequest = 1,
     AccessAccept = 2,
     AccessReject = 3,

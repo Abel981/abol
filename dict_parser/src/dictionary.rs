@@ -39,6 +39,12 @@ pub enum SizeFlag {
     Exact(u32),      // size=16
     Range(u32, u32), // size=1-253
 }
+
+impl SizeFlag {
+    pub fn is_constrained(&self) -> bool {
+        !matches!(self, SizeFlag::Any)
+    }
+}
 #[derive(Clone)]
 pub struct DictionaryValue {
     pub attribute_name: String,

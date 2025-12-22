@@ -1,4 +1,4 @@
-mod dictionary;
+pub mod dictionary;
 
 use std::{
     collections::HashSet,

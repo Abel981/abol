@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{
     Code,
-    attribute::{self, AttributeParseError, Attributes},
+    attribute::{self, AttributeParseError, AttributeValue, Attributes},
 };
 
 pub const MAX_PACKET_SIZE: usize = 4096;
@@ -240,6 +240,21 @@ impl Packet {
         let calculated_hash = hasher.finalize();
         let calculated_bytes: [u8; 16] = calculated_hash.into();
         calculated_bytes == self.authenticator
+    }
+
+    pub fn get_attribute(&self, key: u8) -> Option<&AttributeValue> {
+        self.attributes.get(key)
+    }
+
+    pub fn set_attribute(&mut self, key: u8, value: AttributeValue) {
+        self.attributes.set(key, value);
+    }
+    pub fn get_vsa_attribute(&self, vendor_id: u32, vendor_type: u8) -> Option<&[u8]> {
+        self.attributes.get_vsa_attribute(vendor_id, vendor_type)
+    }
+    pub fn set_vsa_attribute(&mut self, vendor_id: u32, vendor_type: u8, value: AttributeValue) {
+        self.attributes
+            .set_vsa_attribute(vendor_id, vendor_type, value);
     }
 }
 
