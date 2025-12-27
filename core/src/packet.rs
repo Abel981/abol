@@ -77,7 +77,7 @@ impl Packet {
         // 1. Get the raw packet bytes. The Authenticator field (b[4..20])
         //    is currently populated with the Request Authenticator (or random bytes for requests).
         let mut b = self.encode_raw()?;
-        let code = self.code;
+        let code: Code = self.code;
 
         match code {
             // Access-Request and Status-Server use a random Request Authenticator.
@@ -255,6 +255,15 @@ impl Packet {
     pub fn set_vsa_attribute(&mut self, vendor_id: u32, vendor_type: u8, value: AttributeValue) {
         self.attributes
             .set_vsa_attribute(vendor_id, vendor_type, value);
+    }
+ pub fn create_response(&self, code: Code) -> Packet {
+        Packet {
+            code,
+            identifier: self.identifier, 
+            authenticator: self.authenticator,
+            attributes: Attributes::new(),
+            secret: self.secret.clone(),
+        }
     }
 }
 

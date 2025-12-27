@@ -3,6 +3,7 @@ use heck::{ToPascalCase, ToShoutySnakeCase, ToSnakeCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::collections::{HashMap, HashSet};
+pub mod rfc2865;
 
 pub struct Generator {
     pub module_name: String,
@@ -12,6 +13,13 @@ pub struct Generator {
 }
 
 impl Generator {
+    pub fn new(module_name: &str) -> Self {
+        Self {
+            module_name: module_name.to_string(),
+            ignored_attributes: Vec::new(),
+            external_attributes: HashMap::new(),
+        }
+    }
     /// Strict validation based on RADIUS protocol and generator.go logic
     fn validate_attr(&self, attr: &DictionaryAttribute) -> Result<(), String> {
         // OID Check: Standard attributes must fit in 1 byte
@@ -189,7 +197,7 @@ impl Generator {
         } else {
             (
                 quote! { self.get_attribute(#const_ident) },
-                quote! { self.set_attribute(#const_ident, value) },
+                quote! { self.set_attribute(#const_ident, value.to_vec()) },
             )
         };
 
@@ -201,22 +209,25 @@ impl Generator {
                     fn #set_ident(&mut self, value: &[u8]);
                 });
                 bodies.extend(quote! {
-                    fn #get_ident(&self) -> Option<&[u8]> { #call_get }
+                    fn #get_ident(&self) -> Option<&[u8]> { #call_get.map(|v| v.as_slice()) }
                     fn #set_ident(&mut self, value: &[u8]) { #call_set; }
                 });
             }
-            AttributeType::Integer => {
+            AttributeType::Integer | AttributeType::Date => {
                 signatures.extend(quote! {
                     fn #get_ident(&self) -> Option<u32>;
                     fn #set_ident(&mut self, value: u32);
                 });
                 bodies.extend(quote! {
                     fn #get_ident(&self) -> Option<u32> {
-                        #call_get.and_then(|v| v.try_into().ok().map(u32::from_be_bytes))
+                        #call_get.and_then(|v| {
+                            let bytes: [u8; 4] = v.as_slice().try_into().ok()?;
+                            Some(u32::from_be_bytes(bytes))
+                        })
                     }
                     fn #set_ident(&mut self, value: u32) {
-                        let value = &value.to_be_bytes();
-                        #call_set;
+                        let value = value.to_be_bytes(); // Returns [u8; 4]
+                        #call_set; // This will now work because call_set uses value.to_vec() or similar
                     }
                 });
             }
@@ -227,30 +238,19 @@ impl Generator {
                 });
                 bodies.extend(quote! {
                     fn #get_ident(&self) -> Option<Ipv4Addr> {
-                        #call_get.and_then(|v| v.try_into().ok().map(Ipv4Addr::from))
+                        #call_get.and_then(|v| {
+                            let bytes: [u8; 4] = v.as_slice().try_into().ok()?;
+                            Some(Ipv4Addr::from(bytes))
+                        })
                     }
                     fn #set_ident(&mut self, value: Ipv4Addr) {
-                        let value = &value.octets();
+                        let value = value.octets(); // Returns [u8; 4]
                         #call_set;
                     }
                 });
             }
-            AttributeType::Date => {
-                signatures.extend(quote! {
-                    fn #get_ident(&self) -> Option<u32>;
-                    fn #set_ident(&mut self, value: u32);
-                });
-                bodies.extend(quote! {
-                    fn #get_ident(&self) -> Option<u32> {
-                        #call_get.and_then(|v| v.try_into().ok().map(u32::from_be_bytes))
-                    }
-                    fn #set_ident(&mut self, value: u32) {
-                        let value = &value.to_be_bytes();
-                        #call_set;
-                    }
-                });
-            }
-            _ => {} // Implement Ipv6, Date, etc., following the same pattern
+
+            _ => {} // Implement Ipv6, etc., following the same pattern
         }
     }
 }

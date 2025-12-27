@@ -74,39 +74,41 @@ where
                     continue;
                 }
             };
+
+            println!("[packet: {:?}", packet.identifier);
             let is_packet_valid = packet.verify_request(&self.shared_secret);
             if !is_packet_valid {
                 println!("Invalid packet authenticator from {}", peer_addr);
                 continue;
-                let request = Request {
-                    local_addr: self.addr.clone(),
-                    remote_addr: peer_addr.to_string(),
-                    packet,
-                };
+            }
+            let request = Request {
+                local_addr: self.addr.clone(),
+                remote_addr: peer_addr.to_string(),
+                packet,
+            };
 
-                // Call user's handler
-                let handler_result = self.handler.handler(request).await;
-                let response = match handler_result {
-                    Ok(r) => r,
-                    Err(e) => {
-                        eprintln!("Handler returned an error: {:?}", e);
-                        // Depending on the RADIUS server logic, you might send an Access-Reject
-                        // or simply ignore the request and continue the loop.
-                        continue;
-                    }
-                };
-                let encoded = match response.packet.encode() {
-                    Ok(b) => b,
-                    Err(e) => {
-                        eprintln!("Failed to encode response: {:?}", e);
-                        continue;
-                    }
-                };
-
-                // Send back to client
-                if let Err(e) = socket.send_to(&encoded, peer_addr).await {
-                    println!("Failed to send response: {:?}", e);
+            // Call user's handler
+            let handler_result = self.handler.handler(request).await;
+            let response = match handler_result {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Handler returned an error: {:?}", e);
+                    //TODO  Depending on the RADIUS server logic, you might send an Access-Reject
+                    // or simply ignore the request and continue the loop.
+                    continue;
                 }
+            };
+            let encoded = match response.packet.encode() {
+                Ok(b) => b,
+                Err(e) => {
+                    eprintln!("Failed to encode response: {:?}", e);
+                    continue;
+                }
+            };
+
+            // Send back to client
+            if let Err(e) = socket.send_to(&encoded, peer_addr).await {
+                println!("Failed to send response: {:?}", e);
             }
         }
     }

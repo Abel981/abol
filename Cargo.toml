@@ -13,8 +13,8 @@ members = [ "client", "server", "rt" , "core", "dict_parser", "dict_gen"]
 
 [features]
 # Runtime support features
-default = ["tokio","client", "server"]
-tokio = ["rt/tokio"]
+default = ["tokio", "client", "server"]
+tokio = ["rt/tokio","server/tokio"]
 smol = ["rt/smol"]
 
 # Client and server logical features
@@ -23,7 +23,7 @@ server = []
 
 
 [dependencies]
-rt = { path = "rt" }
+rt = { path = "rt", features = ["tokio"] }
 client = { path = "client" }
 server = { path = "server"}
 async-trait = "0.1.88"
@@ -35,6 +35,8 @@ md-5 = "0.10.6"
 quote = "1.0.42"
 proc-macro2 = "1.0.103"
 heck = "0.5.0"
+clap = { version = "4.5.53", features = ["derive"] }
+
 
 
 

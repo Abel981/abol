@@ -2,12 +2,13 @@ pub mod dictionary;
 
 use std::{
     collections::HashSet,
+    fmt::format,
     fs::File,
     io::{BufRead, BufReader},
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 
 use crate::dictionary::{
     AttributeType, DictionaryAttribute, DictionaryValue, DictionaryVendor, Oid, SizeFlag,
@@ -23,24 +24,37 @@ pub struct FileOpener {
 }
 
 impl FileOpener {
-    pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+   pub fn new(root: impl Into<PathBuf>) -> Self {
+        let root_path = root.into();
+        // Canonicalize the root immediately to turn relative paths (like ../)
+        // into absolute system paths for reliable security checks.
+        let canonical_root = root_path.canonicalize().unwrap_or(root_path);
+        Self { root: canonical_root }
     }
 
-    pub fn open_file(&self, relative_path: &str) -> Result<File> {
-        let path = {
-            let p = Path::new(relative_path);
-            if p.is_absolute() {
-                p.to_path_buf()
-            } else {
-                self.root.join(p)
-            }
+    pub fn get_root(&self) -> &Path {
+        &self.root
+    }
+
+    pub fn open_file(&self, relative_path: impl AsRef<Path>) -> Result<File> {
+        let relative_path = relative_path.as_ref();
+        let full_path = if relative_path.is_absolute() {
+            relative_path.to_path_buf()
+        } else {
+            self.root.join(relative_path)
         };
-        let abs_path = path
+        let abs_path = full_path
             .canonicalize()
-            .with_context(|| format!("failed to resolve absolute path for {:?}", path))?;
+            .with_context(|| format!("failed to resolve absolute path for {:?}", full_path))?;
+        ensure!(
+            abs_path.starts_with(&self.root),
+            "attempted to open file {:?} outside of root {:?}",
+            abs_path,
+            self.root
+        );
         let file =
             File::open(&abs_path).with_context(|| format!("failed to open file {:?}", abs_path))?;
+            println!("Opened file {:?}", abs_path);
         Ok(file)
     }
 }
@@ -58,7 +72,7 @@ impl Parser {
         }
     }
 
-    pub fn parse_dictionary(&self, file_path: &str) -> Result<dictionary::Dictionary> {
+    pub fn parse_dictionary(&self, file_path: impl AsRef<Path>) -> Result<dictionary::Dictionary> {
         // initialize empty dictionary
         let mut dict = dictionary::Dictionary {
             attributes: Vec::new(),
@@ -66,10 +80,16 @@ impl Parser {
             vendors: Vec::new(),
         };
 
-        let file = self.file_opener.open_file(file_path)?;
+        let file = self.file_opener.open_file(&file_path)?;
         let mut parsed = HashSet::new();
-        let canonical = Self::canonical_path(file_path)?;
-        parsed.insert(canonical);
+        let p = file_path.as_ref();
+        let full_path = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        self.file_opener.get_root().join(p) // Access the absolute root from FileOpener
+    };
+        // let canonical = Self::canonical_path(&file_path)?;
+        parsed.insert(full_path);
         self.parse(&mut dict, &mut parsed, file)?;
         Ok(dict)
     }
@@ -77,7 +97,7 @@ impl Parser {
     fn parse(
         &self,
         dict: &mut dictionary::Dictionary,
-        parsed_files: &mut HashSet<String>,
+        parsed_files: &mut HashSet<PathBuf>,
         file: File,
     ) -> Result<()> {
         let reader = BufReader::new(file);
@@ -94,6 +114,7 @@ impl Parser {
                 continue;
             }
             let fields: Vec<&str> = line.split_whitespace().collect();
+            println!("Parsing line {}: {:?}", line_no, fields);
 
             match () {
                 // ATTRIBUTE lines: "ATTRIBUTE <name> <type> <oid> [encrypt]"
@@ -190,12 +211,22 @@ impl Parser {
                         bail!("line {}: $INCLUDE not allowed inside vendor block", line_no);
                     }
                     let include_path = fields[1];
-                    let inc_file = self.file_opener.open_file(include_path).with_context(|| {
-                        format!("line {}: failed to open include {}", line_no, include_path)
-                    })?;
-                    let inc_canonical = Self::canonical_path(include_path)?;
+                    let include_path = PathBuf::from(include_path);
+                    let inc_file =
+                        self.file_opener.open_file(&include_path).with_context(|| {
+                            format!(
+                                "line {}: failed to open include {}",
+                                line_no,
+                                include_path.display()
+                            )
+                        })?;
+                    let inc_canonical = Self::canonical_path(&include_path)?;
                     if parsed_files.contains(&inc_canonical) {
-                        bail!("line {}: recursive include {}", line_no, include_path);
+                        bail!(
+                            "line {}: recursive include {}",
+                            line_no,
+                            include_path.display()
+                        );
                     }
                     parsed_files.insert(inc_canonical.clone());
                     self.parse(dict, parsed_files, inc_file)?;
@@ -221,12 +252,16 @@ impl Parser {
             return Err("ATTRIBUTE line too short".into());
         }
         let name = fields[1].to_string();
-        let attr_type = Self::parse_attribute_type(fields[2])?;
-        let oid = parse_oid(fields[3])?;
+        let attr_type = Self::parse_attribute_type(fields[3])?;
+        let oid = parse_oid(fields[2])?;
         let size = SizeFlag::Any; // TODO: parse explicit size if present in extended dialect
         let encrypt = if fields.len() == 5 {
+            let encrypt_val = fields[4];
+            let Some((_, value)) = encrypt_val.split_once('=') else {
+                return Err("invalid encrypt format".into());
+            };
             Some(
-                fields[4]
+                value
                     .parse::<u8>()
                     .map_err(|e| format!("invalid encrypt: {}", e))?,
             )
@@ -280,15 +315,14 @@ impl Parser {
         })
     }
 
-    fn canonical_path(p: &str) -> Result<String> {
-        let path = Path::new(p);
+    fn canonical_path(p: &impl AsRef<Path>) -> Result<PathBuf> {
+        let path = p.as_ref();
+
         let abs_path = path
             .canonicalize()
             .with_context(|| format!("failed to resolve absolute path for {:?}", path))?;
-        Ok(abs_path
-            .to_str()
-            .with_context(|| format!("failed to convert path {:?} to string", abs_path))?
-            .to_string())
+
+        Ok(abs_path)
     }
 
     fn parse_attribute_type(s: &str) -> std::result::Result<AttributeType, String> {

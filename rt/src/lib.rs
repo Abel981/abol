@@ -26,13 +26,13 @@ impl Executor for SmolExecutor {
     }
 }
 
-pub fn get_executor() -> Box<dyn Executor> {
-    #[cfg(feature = "tokio")]
-    {
-        Box::new(TokioExecutor)
-    }
-    #[cfg(feature = "smol")]
-    {
-        Box::new(SmolExecutor)
-    }
-}
+// pub fn get_executor() -> Box<dyn Executor> {
+//     #[cfg(feature = "tokio")]
+//     {
+//         Box::new(TokioExecutor)
+//     }
+//     #[cfg(feature = "smol")]
+//     {
+//         Box::new(SmolExecutor)
+//     }
+// }

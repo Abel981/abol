@@ -7,6 +7,11 @@ pub struct Avp {
 }
 
 pub struct Attributes(pub Vec<Avp>);
+impl Attributes {
+    pub fn new() -> Self {
+        Attributes(Vec::new())
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum AttributeParseError {
