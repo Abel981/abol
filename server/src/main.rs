@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Start server on all interfaces, port 1812, secret "testing123"
-    let server = Server::new("0.0.0.0:1812", b"testing123".to_vec(), handler);
+    let server = Server::new("0.0.0.0:1812", "testing123".to_vec(), handler);
     
     // We pass a simple never-ending future for the shutdown signal for testing
     server.listen_and_serve().await?;

@@ -1,14 +1,14 @@
 # ☕ Abol
 
-```{=html}
+
 <p align="center">
-  <b>A high-performance, concurrent RADIUS implementation for Rust</b>
+  <b>A high-performance,asynchronous, RADIUS implementation for Rust</b>
 </p>
 
 <p align="center">
   Type-safe • Runtime-agnostic • Dictionary-driven
 </p>
-```
+
 
 ------------------------------------------------------------------------
 
@@ -42,7 +42,7 @@ protocol extensions.
     with zero runtime overhead.
 
 -   📚 **Dictionary Power**\
-    Turn standard RADIUS dictionary files into **idiomatic Rust traits**
+    Turn standard RADIUS dictionary files into **Rust traits**
     automatically at build time.
 
 -   🛡 **Memory Safe**\
@@ -66,27 +66,55 @@ tokio = { version = "1", features = ["full"] }
 ## 🧪 Example: Simple Auth Server
 
 ``` rust
-use abol::{Server, HandlerFn, Request, Response};
+use abol::core::{Request, Response, Code, packet::Packet};
 use abol::dictionary::rfc2865Ext;
+use abol::server::{Server, HandlerFn}
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let handler = HandlerFn(|request: Request| async move {
-        let user = request.packet.get_user_name().unwrap_or_default();
-        let pass = request.packet.get_user_password().unwrap_or_default();
+        // 1. Extraction: Get attributes from the packet using generated traits
+        let user_name = request.packet.get_user_name().unwrap_or_else(|| "Unknown".to_string());
+        let user_pass = request.packet.get_user_password().unwrap_or_default();
 
-        if user == "abol-user" && pass == "secret" {
-            let mut res = request.packet.create_response(2);
-            res.set_reply_message("Welcome to the first round!");
-            Ok(Response { packet: res })
+        // 2. Variable for local testing
+        let expected_password = "supersecretpassword";
+
+        // 3. Comparison Logic
+        // Note: In a real-world scenario, you would perform an async DB lookup here:
+        // let user_record = db.find_user(&user_name).await?;
+        // if argon2::verify(&user_record.hash, user_pass.as_bytes()) { ... }
+        
+        if user_pass == expected_password {
+            println!("Authentication successful for: {}", user_name);
+
+            // Create Access-Accept (Code 2)
+            let mut res_packet = request.packet.create_response(Code::AccessAccept);
+            res_packet.set_reply_message(format!("Hello {}, access granted!", user_name));
+
+            Ok(Response { packet: res_packet })
         } else {
-            let res = request.packet.create_response(3);
-            Ok(Response { packet: res })
+            println!("Authentication failed for: {}", user_name);
+
+            // Create Access-Reject (Code 3)
+            let mut res_packet = request.packet.create_response(Code::AccessReject);
+            res_packet.set_reply_message("Invalid credentials provided.");
+
+            Ok(Response { packet: res_packet })
         }
     });
 
-    let server = Server::new("0.0.0.0:1812", b"shared-secret", handler);
-    server.listen_and_serve(tokio::signal::ctrl_c()).await?;
+    // 4. Server Initialization
+    // Shared secret: "testing123", Listen Address: "0.0.0.0:1812"
+    let server = Server::new("0.0.0.0:1812", "testing123", handler);
+
+    println!("Abol RADIUS server is brewing on 0.0.0.0:1812...");
+    
+    // Run the server
+    if let Err(e) = server.listen_and_serve().await {
+        eprintln!("Server error: {}", e);
+    }
+
     Ok(())
 }
 ```
