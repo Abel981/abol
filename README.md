@@ -2,17 +2,11 @@
 
 ```{=html}
 <p align="center">
-```
-`<b>`{=html}A high-performance, concurrent RADIUS implementation for
-Rust`</b>`{=html}
-```{=html}
+  <b>A high-performance, concurrent RADIUS implementation for Rust</b>
 </p>
-```
-```{=html}
+
 <p align="center">
-```
-Type-safe • Runtime-agnostic • Dictionary-driven
-```{=html}
+  Type-safe • Runtime-agnostic • Dictionary-driven
 </p>
 ```
 
@@ -117,10 +111,6 @@ async fn main() -> anyhow::Result<()> {
 
 ------------------------------------------------------------------------
 
-```{=html}
 <p align="center">
-```
-Crafted with ☕ in the spirit of the first brew.
-```{=html}
+  Crafted with ☕ in the spirit of the first brew.
 </p>
-```
