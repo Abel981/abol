@@ -11,9 +11,6 @@ compile_error!(
      Example: `radius-protocol = { version = \"1.0\", features = [\"tokio\"] }`"
 );
 
-pub mod client {
-    pub use client::*;
-}
 
 pub mod server {
     pub use server::*;

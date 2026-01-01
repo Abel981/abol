@@ -114,7 +114,6 @@ impl Parser {
                 continue;
             }
             let fields: Vec<&str> = line.split_whitespace().collect();
-            println!("Parsing line {}: {:?}", line_no, fields);
 
             match () {
                 // ATTRIBUTE lines: "ATTRIBUTE <name> <type> <oid> [encrypt]"
@@ -132,7 +131,7 @@ impl Parser {
                     };
 
                     if let Some(existing_attr) = existing {
-                        if self.ignore_identical_attributes && attr_equals(&attr, existing_attr) {
+                        if self.ignore_identical_attributes && attr == *existing_attr {
                             // skip if identical and ignoring identical
                             continue;
                         }
@@ -332,6 +331,11 @@ impl Parser {
             "ipaddr" => AttributeType::IpAddr,
             "octets" => AttributeType::Octets,
             "date" => AttributeType::Date,
+            "tlv" => AttributeType::Tlv,
+            "byte" => AttributeType::Byte,
+            "short" => AttributeType::Short,
+            "signed" => AttributeType::Signed,
+            "ipv4prefix" => AttributeType::Ipv4Prefix,
             "vsa" => AttributeType::Vsa,
             "ifid" => AttributeType::Ifid,
             "ipv6addr" => AttributeType::Ipv6Addr,
@@ -384,10 +388,4 @@ fn vendor_by_name_or_number<'a>(
     vendors.iter().find(|v| v.name == name || v.code == code)
 }
 
-fn attr_equals(a: &DictionaryAttribute, b: &DictionaryAttribute) -> bool {
-    // naive equality check for the "ignore identical" feature
-    a.name == b.name
-        && a.oid.vendor == b.oid.vendor
-        && a.oid.code == b.oid.code
-        && std::mem::discriminant(&a.attr_type) == std::mem::discriminant(&b.attr_type)
-}
+

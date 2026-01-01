@@ -1,3 +1,4 @@
+use std::{net::{Ipv4Addr, Ipv6Addr}, time::{Duration, SystemTime, UNIX_EPOCH}};
 pub type AttributeType = u8;
 pub type AttributeValue = Vec<u8>;
 
@@ -133,4 +134,145 @@ impl Attributes {
             value: vsa_value,
         });
     }
+
+    
 }
+pub trait FromRadiusAttribute: Sized {
+    fn from_bytes(bytes: &[u8]) -> Option<Self>;
+}
+
+pub trait ToRadiusAttribute {
+    fn to_bytes(&self) -> Vec<u8>;
+}
+
+impl FromRadiusAttribute for u16 {
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let b: [u8; 2] = bytes.try_into().ok()?;
+        Some(u16::from_be_bytes(b))
+    }
+}
+
+impl ToRadiusAttribute for u16 {
+    fn to_bytes(&self) -> Vec<u8> {
+        self.to_be_bytes().to_vec()
+    }
+}
+
+impl FromRadiusAttribute for u32 {
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let b: [u8; 4] = bytes.try_into().ok()?;
+        Some(u32::from_be_bytes(b))
+    }
+}
+
+impl ToRadiusAttribute for u32 {
+    fn to_bytes(&self) -> Vec<u8> {
+        self.to_be_bytes().to_vec()
+    }
+}
+
+impl FromRadiusAttribute for u64 {
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let b: [u8; 8] = bytes.try_into().ok()?;
+        Some(u64::from_be_bytes(b))
+    }
+}
+
+impl ToRadiusAttribute for u64 {
+    fn to_bytes(&self) -> Vec<u8> {
+        self.to_be_bytes().to_vec()
+    }
+}
+
+impl FromRadiusAttribute for Ipv4Addr {
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let b: [u8; 4] = bytes.try_into().ok()?;
+        Some(Ipv4Addr::from(b))
+    }
+}
+
+impl ToRadiusAttribute for Ipv4Addr {
+    fn to_bytes(&self) -> Vec<u8> {
+        self.octets().to_vec()
+    }
+}
+
+impl FromRadiusAttribute for Ipv6Addr {
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let b: [u8; 16] = bytes.try_into().ok()?;
+        Some(Ipv6Addr::from(b))
+    }
+}
+
+impl ToRadiusAttribute for Ipv6Addr {
+    fn to_bytes(&self) -> Vec<u8> {
+        self.octets().to_vec()
+    }
+}
+
+impl FromRadiusAttribute for String {
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        String::from_utf8(bytes.to_vec()).ok()
+    }
+}
+
+impl ToRadiusAttribute for String {
+    fn to_bytes(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
+    }
+}
+
+impl FromRadiusAttribute for Vec<u8> {
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        Some(bytes.to_vec())
+    }
+}
+
+impl ToRadiusAttribute for Vec<u8> {
+    fn to_bytes(&self) -> Vec<u8> {
+        self.clone()
+    }
+}
+
+impl FromRadiusAttribute for SystemTime {
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let secs = u32::from_bytes(bytes)?;
+        Some(UNIX_EPOCH + Duration::from_secs(secs as u64))
+    }
+}
+
+impl ToRadiusAttribute for SystemTime {
+    fn to_bytes(&self) -> Vec<u8> {
+        let duration = self.duration_since(UNIX_EPOCH).unwrap_or_default();
+        (duration.as_secs() as u32).to_bytes()
+    }
+}
+
+/// Helper for Type-Length-Value (TLV) attributes
+pub struct Tlv {
+    pub tlv_type: u8,
+    pub value: Vec<u8>,
+}
+
+impl FromRadiusAttribute for Tlv {
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() < 2 || bytes[1] as usize != bytes.len() {
+            return None;
+        }
+        Some(Tlv {
+            tlv_type: bytes[0],
+            value: bytes[2..].to_vec(),
+        })
+    }
+}
+
+impl ToRadiusAttribute for Tlv {
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut v = Vec::with_capacity(2 + self.value.len());
+        v.push(self.tlv_type);
+        v.push((2 + self.value.len()) as u8);
+        v.extend_from_slice(&self.value);
+        v
+    }
+}
+

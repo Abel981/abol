@@ -1,11 +1,12 @@
 use md5::{Digest, Md5};
 use rand::Rng;
-use std::io::Cursor;
+use std::{io::Cursor, net::{Ipv4Addr, Ipv6Addr}, time::{Duration, SystemTime, UNIX_EPOCH}};
 use thiserror::Error;
+use rand::RngCore;
 
 use crate::{
     Code,
-    attribute::{self, AttributeParseError, AttributeValue, Attributes},
+    attribute::{self, AttributeParseError, AttributeValue, Attributes, FromRadiusAttribute, ToRadiusAttribute},
 };
 
 pub const MAX_PACKET_SIZE: usize = 4096;
@@ -255,7 +256,167 @@ impl Packet {
     pub fn set_vsa_attribute(&mut self, vendor_id: u32, vendor_type: u8, value: AttributeValue) {
         self.attributes
             .set_vsa_attribute(vendor_id, vendor_type, value);
+
     }
+          /// Encrypts a plaintext password according to RFC 2865 (User-Password)
+    pub fn encrypt_user_password(&self, plaintext: &[u8]) -> Option<Vec<u8>> {
+        if plaintext.len() > 128 || self.secret.is_empty() {
+            return None;
+        }
+
+        let chunks = if plaintext.is_empty() { 1 } else { (plaintext.len() + 15) / 16 };
+        let mut enc = Vec::with_capacity(chunks * 16);
+        
+        let mut hasher = Md5::new();
+        hasher.update(&self.secret);
+        hasher.update(&self.authenticator);
+        let mut b = hasher.finalize();
+
+        // First 16-byte block
+        for i in 0..16 {
+            let p_byte = if i < plaintext.len() { plaintext[i] } else { 0 };
+            enc.push(p_byte ^ b[i]);
+        }
+
+        // Subsequent blocks
+        for i in 1..chunks {
+            hasher = Md5::new();
+            hasher.update(&self.secret);
+            hasher.update(&enc[(i-1)*16..i*16]);
+            b = hasher.finalize();
+
+            for j in 0..16 {
+                let offset = i * 16 + j;
+                let p_byte = if offset < plaintext.len() { plaintext[offset] } else { 0 };
+                enc.push(p_byte ^ b[j]);
+            }
+        }
+        Some(enc)
+    }
+
+    /// Decrypts a User-Password attribute according to RFC 2865
+    pub fn decrypt_user_password(&self, encrypted: &[u8]) -> Option<Vec<u8>> {
+        if encrypted.is_empty() || encrypted.len() % 16 != 0 || self.secret.is_empty() {
+            return None;
+        }
+
+        let mut plaintext = Vec::with_capacity(encrypted.len());
+        let mut last_round = self.authenticator.to_vec();
+
+        for chunk in encrypted.chunks(16) {
+            let mut hasher = Md5::new();
+            hasher.update(&self.secret);
+            hasher.update(&last_round);
+            let b = hasher.finalize();
+            for i in 0..16 { plaintext.push(chunk[i] ^ b[i]); }
+            last_round = chunk.to_vec();
+        }
+        let mut end = plaintext.len();
+        while end > 0 && plaintext[end - 1] == 0 { end -= 1; }
+        Some(plaintext[..end].to_vec())
+    }
+
+    /// Encrypts Tunnel-Password according to RFC 2868
+    pub fn encrypt_tunnel_password(&self, plaintext: &[u8]) -> Option<Vec<u8>> {
+        if self.secret.is_empty() { return None; }
+
+        let mut salt = [0u8; 2];
+        rand::rng().fill_bytes(&mut salt);
+        salt[0] |= 0x80;
+
+        let mut data = vec![plaintext.len() as u8];
+        data.extend_from_slice(plaintext);
+        while data.len() % 16 != 0 { data.push(0); }
+
+        let mut result = salt.to_vec();
+        let mut last_round = Vec::with_capacity(16 + 2);
+        last_round.extend_from_slice(&self.authenticator);
+        last_round.extend_from_slice(&salt);
+
+        for chunk in data.chunks(16) {
+            let mut hasher = Md5::new();
+            hasher.update(&self.secret);
+            hasher.update(&last_round);
+            let b = hasher.finalize();
+
+            let mut encrypted_chunk = [0u8; 16];
+            for i in 0..16 { encrypted_chunk[i] = chunk[i] ^ b[i]; }
+            result.extend_from_slice(&encrypted_chunk);
+            last_round = encrypted_chunk.to_vec();
+        }
+        Some(result)
+    }
+
+    /// Decrypts Tunnel-Password according to RFC 2868
+    pub fn decrypt_tunnel_password(&self, encrypted: &[u8]) -> Option<Vec<u8>> {
+        if encrypted.len() < 18 || (encrypted.len() - 2) % 16 != 0 || self.secret.is_empty() {
+            return None;
+        }
+        
+        let salt = &encrypted[0..2];
+        let ciphertext = &encrypted[2..];
+        let mut plaintext = Vec::with_capacity(ciphertext.len());
+        
+        let mut last_round = Vec::with_capacity(16 + 2);
+        last_round.extend_from_slice(&self.authenticator);
+        last_round.extend_from_slice(salt);
+
+        for chunk in ciphertext.chunks(16) {
+            let mut hasher = Md5::new();
+            hasher.update(&self.secret);
+            hasher.update(&last_round);
+            let b = hasher.finalize();
+            for i in 0..16 { plaintext.push(chunk[i] ^ b[i]); }
+            last_round = chunk.to_vec();
+        }
+
+        let len = plaintext[0] as usize;
+        if len > plaintext.len() - 1 { return None; }
+        Some(plaintext[1..1 + len].to_vec())
+    }
+
+  
+    pub fn get_attribute_as<T: FromRadiusAttribute>(&self, type_code: u8) -> Option<T> {
+        match type_code {
+            2 => { // User-Password
+                let raw = self.get_attribute(2)?;
+                let decrypted = self.decrypt_user_password(raw)?;
+                T::from_bytes(&decrypted)
+            },
+            69 => { // Tunnel-Password
+                let raw = self.get_attribute(69)?;
+                let decrypted = self.decrypt_tunnel_password(raw)?;
+                T::from_bytes(&decrypted)
+            },
+            _ => self.get_attribute(type_code).and_then(|raw| T::from_bytes(raw))
+        }
+    }
+
+    pub fn set_attribute_as<T: ToRadiusAttribute>(&mut self, type_code: u8, value: T) {
+        match type_code {
+            2 => { 
+                if let Some(encrypted) = self.encrypt_user_password(&value.to_bytes()) {
+                    self.set_attribute(2, encrypted);
+                }
+            },
+            69 => {
+                if let Some(encrypted) = self.encrypt_tunnel_password(&value.to_bytes()) {
+                    self.set_attribute(69, encrypted);
+                }
+            },
+            _ => self.set_attribute(type_code, value.to_bytes()),
+        }
+    }
+
+    pub fn get_vsa_attribute_as<T: FromRadiusAttribute>(&self, v_id: u32, v_type: u8) -> Option<T> {
+        self.get_vsa_attribute(v_id, v_type).and_then(|raw| T::from_bytes(raw))
+    }
+
+    pub fn set_vsa_attribute_as<T: ToRadiusAttribute>(&mut self, v_id: u32, v_type: u8, value: T) {
+        self.set_vsa_attribute(v_id, v_type, value.to_bytes());
+    }
+
+
  pub fn create_response(&self, code: Code) -> Packet {
         Packet {
             code,
@@ -272,3 +433,4 @@ impl From<AttributeParseError> for PacketParseError {
         PacketParseError::AttributeError(err)
     }
 }
+

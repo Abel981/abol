@@ -2,8 +2,11 @@ use dict_parser::dictionary::{AttributeType, Dictionary, DictionaryAttribute, Di
 use heck::{ToPascalCase, ToShoutySnakeCase, ToSnakeCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+use std::process::{Command, Stdio};
 use std::collections::{HashMap, HashSet};
+use std::io::Write;
 pub mod rfc2865;
+
 
 pub struct Generator {
     pub module_name: String,
@@ -68,6 +71,27 @@ impl Generator {
 
         Ok(())
     }
+     fn format_code(&self, content: &str) -> String {
+        let mut child = Command::new("rustfmt")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()
+            .and_then(|mut child| {
+                let mut stdin = child.stdin.take()?;
+                stdin.write_all(content.as_bytes()).ok()?;
+                drop(stdin);
+                let output = child.wait_with_output().ok()?;
+                if output.status.success() {
+                    Some(String::from_utf8_lossy(&output.stdout).to_string())
+                } else {
+                    None
+                }
+            });
+
+        child.unwrap_or_else(|| content.to_string())
+    }
 
     pub fn generate(&self, dict: &Dictionary) -> Result<String, Box<dyn std::error::Error>> {
         let mut tokens = TokenStream::new();
@@ -89,7 +113,8 @@ impl Generator {
         // 2. Base Imports
         tokens.extend(quote! {
             use std::net::{Ipv4Addr, Ipv6Addr};
-            use radius_core::{Packet};
+          use radius_core::{packet::Packet, attribute::FromRadiusAttribute, attribute::ToRadiusAttribute};
+            use std::time::SystemTime;
         });
 
         // 3. Process Standard Attributes
@@ -141,11 +166,12 @@ impl Generator {
                 #trait_impl_bodies
             }
         });
+         let raw_code = tokens.to_string();
 
-        Ok(tokens.to_string())
+        Ok(self.format_code(&raw_code))
     }
 
-    fn process_attribute(
+     fn process_attribute(
         &self,
         attr: &DictionaryAttribute,
         ignored: &HashSet<&String>,
@@ -154,24 +180,56 @@ impl Generator {
         signatures: &mut TokenStream,
         bodies: &mut TokenStream,
     ) {
-        if ignored.contains(&attr.name) {
-            return;
-        }
+        if ignored.contains(&attr.name) { return; }
         if let Err(e) = self.validate_attr(attr) {
             eprintln!("Skipping {}: {}", attr.name, e);
             return;
         }
 
+        // 1. Map Dictionary Type to Rust Type early so it's available for quotes
+          let (get_type, set_type) = match attr.attr_type {
+           AttributeType::String => (quote! { String }, quote! { impl Into<String> }),
+            AttributeType::Integer => (quote! { u32 }, quote! { u32 }),
+            AttributeType::IpAddr => (quote! { Ipv4Addr }, quote! { Ipv4Addr }),
+            AttributeType::Ipv6Addr => (quote! { Ipv6Addr }, quote! { Ipv6Addr }),
+            AttributeType::Octets | AttributeType::Ether | AttributeType::ABinary | AttributeType::Vsa => {
+                (quote! { Vec<u8> }, quote! { impl Into<Vec<u8>> })
+            },
+            AttributeType::Date => (quote! { SystemTime }, quote! { SystemTime }),
+            AttributeType::Byte => (quote! { u8 }, quote! { u8 }),
+            AttributeType::Short => (quote! { u16 }, quote! { u16 }),
+            AttributeType::Signed => (quote! { i32 }, quote! { i32 }),
+            AttributeType::Tlv => (quote! { Tlv }, quote! { Tlv }),
+            AttributeType::Ipv4Prefix | AttributeType::Ipv6Prefix => (quote! { Vec<u8> }, quote! { Vec<u8> }),
+            AttributeType::Ifid | AttributeType::InterfaceId => (quote! { u64 }, quote! { u64 }),
+            _ => return, // Skip Unknown types
+        };
+    //   let rust_type = match attr.attr_type {
+    //         AttributeType::String => quote! { String },
+    //         AttributeType::Integer => quote! { u32 },
+    //         AttributeType::IpAddr => quote! { Ipv4Addr },
+    //         AttributeType::Ipv6Addr => quote! { Ipv6Addr },
+    //         AttributeType::Octets | AttributeType::Ether | AttributeType::ABinary => quote! {impl Into<Vec<u8>> },
+    //         AttributeType::Date => quote! { SystemTime },
+    //         AttributeType::Byte => quote! { u8 },
+    //         AttributeType::Short => quote! { u16 },
+    //         AttributeType::Signed => quote! { i32 },
+    //         AttributeType::Tlv => quote! { Tlv },
+    //         AttributeType::Ipv4Prefix | AttributeType::Ipv6Prefix => quote! { Vec<u8> },
+    //         AttributeType::Ifid | AttributeType::InterfaceId => quote! { u64 },
+    //         AttributeType::Vsa => quote! {impl Into<Vec<u8>> },
+    //         _ => return, // Skip Unknown types
+    //     };
+
+
         let is_external = self.external_attributes.contains_key(&attr.name);
         let const_ident = format_ident!("{}_TYPE", attr.name.to_shouty_snake_case());
 
-        // A. Generate constants for the Attribute Type
         if !is_external {
             let code = attr.oid.code as u8;
             tokens.extend(quote! { pub const #const_ident: u8 = #code; });
         }
 
-        // B. Generate Value Constants (Enums)
         if let Some(values) = value_map.get(&attr.name) {
             for val in values {
                 let val_ident = format_ident!(
@@ -184,73 +242,32 @@ impl Generator {
             }
         }
 
-        // C. Build Method Dispatch Logic
         let get_ident = format_ident!("get_{}", attr.name.to_snake_case());
         let set_ident = format_ident!("set_{}", attr.name.to_snake_case());
 
-        let (call_get, call_set) = if let Some(vid) = attr.oid.vendor {
-            let v_const = format_ident!("VENDOR_{}", vid); // Ideally look up vendor name
+        // 2. Generate Signatures
+        signatures.extend(quote! {
+            fn #get_ident(&self) -> Option<#get_type>;
+            fn #set_ident(&mut self, value: #set_type);
+        });
+
+        // 3. Generate Bodies using trait helpers
+          let (final_get, final_set) = if let Some(vid) = attr.oid.vendor {
+            let v_const = format_ident!("VENDOR_{}", vid);
             (
-                quote! { self.get_vsa_attribute(#v_const, #const_ident) },
-                quote! { self.set_vsa_attribute(#v_const, #const_ident, value) },
+                quote! { self.get_vsa_attribute_as::<#get_type>(#v_const, #const_ident) },
+                quote! { self.set_vsa_attribute_as::<#get_type>(#v_const, #const_ident, value.into()) }
             )
         } else {
             (
-                quote! { self.get_attribute(#const_ident) },
-                quote! { self.set_attribute(#const_ident, value.to_vec()) },
+                quote! { self.get_attribute_as::<#get_type>(#const_ident) },
+                quote! { self.set_attribute_as::<#get_type>(#const_ident, value.into()) }
             )
         };
 
-        // D. Generate Type-Specific Signatures and Implementations
-        match attr.attr_type {
-            AttributeType::String | AttributeType::Octets => {
-                signatures.extend(quote! {
-                    fn #get_ident(&self) -> Option<&[u8]>;
-                    fn #set_ident(&mut self, value: &[u8]);
-                });
-                bodies.extend(quote! {
-                    fn #get_ident(&self) -> Option<&[u8]> { #call_get.map(|v| v.as_slice()) }
-                    fn #set_ident(&mut self, value: &[u8]) { #call_set; }
-                });
-            }
-            AttributeType::Integer | AttributeType::Date => {
-                signatures.extend(quote! {
-                    fn #get_ident(&self) -> Option<u32>;
-                    fn #set_ident(&mut self, value: u32);
-                });
-                bodies.extend(quote! {
-                    fn #get_ident(&self) -> Option<u32> {
-                        #call_get.and_then(|v| {
-                            let bytes: [u8; 4] = v.as_slice().try_into().ok()?;
-                            Some(u32::from_be_bytes(bytes))
-                        })
-                    }
-                    fn #set_ident(&mut self, value: u32) {
-                        let value = value.to_be_bytes(); // Returns [u8; 4]
-                        #call_set; // This will now work because call_set uses value.to_vec() or similar
-                    }
-                });
-            }
-            AttributeType::IpAddr => {
-                signatures.extend(quote! {
-                    fn #get_ident(&self) -> Option<Ipv4Addr>;
-                    fn #set_ident(&mut self, value: Ipv4Addr);
-                });
-                bodies.extend(quote! {
-                    fn #get_ident(&self) -> Option<Ipv4Addr> {
-                        #call_get.and_then(|v| {
-                            let bytes: [u8; 4] = v.as_slice().try_into().ok()?;
-                            Some(Ipv4Addr::from(bytes))
-                        })
-                    }
-                    fn #set_ident(&mut self, value: Ipv4Addr) {
-                        let value = value.octets(); // Returns [u8; 4]
-                        #call_set;
-                    }
-                });
-            }
-
-            _ => {} // Implement Ipv6, etc., following the same pattern
-        }
+        bodies.extend(quote! {
+            fn #get_ident(&self) -> Option<#get_type> { #final_get }
+            fn #set_ident(&mut self, value: #set_type) { #final_set }
+        });
     }
 }

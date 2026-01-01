@@ -1,7 +1,7 @@
 use anyhow::Context;
 use async_trait::async_trait;
 use radius_core::packet::{MAX_PACKET_SIZE, Packet};
-use radius_core::{HandlerResult, packet};
+use radius_core::{HandlerResultt};
 use radius_core::{Request, Response};
 use rt::net::UdpSocket;
 
