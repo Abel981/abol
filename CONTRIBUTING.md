@@ -142,11 +142,11 @@ rustup component add rustfmt
 
 ------------------------------------------------------------------------
 
-```{=html}
+
 <p align="center">
 ```
 ☕ `<b>`{=html}Happy Brewing!`</b>`{=html}`<br/>`{=html} If you have
 questions, feel free to reach out via GitHub issues.
-```{=html}
+
 </p>
 ```
