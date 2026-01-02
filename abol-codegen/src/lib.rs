@@ -1,4 +1,4 @@
-use dict_parser::dictionary::{AttributeType, Dictionary, DictionaryAttribute, DictionaryValue};
+use abol_parser::dictionary::{AttributeType, Dictionary, DictionaryAttribute, DictionaryValue};
 use heck::{ToPascalCase, ToShoutySnakeCase, ToSnakeCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -113,7 +113,7 @@ impl Generator {
         // 2. Base Imports
         tokens.extend(quote! {
             use std::net::{Ipv4Addr, Ipv6Addr};
-          use radius_core::{packet::Packet, attribute::FromRadiusAttribute, attribute::ToRadiusAttribute};
+          use abol_core::{packet::Packet, attribute::FromRadiusAttribute, attribute::ToRadiusAttribute};
             use std::time::SystemTime;
         });
 
@@ -204,23 +204,6 @@ impl Generator {
             AttributeType::Ifid | AttributeType::InterfaceId => (quote! { u64 }, quote! { u64 }),
             _ => return, // Skip Unknown types
         };
-    //   let rust_type = match attr.attr_type {
-    //         AttributeType::String => quote! { String },
-    //         AttributeType::Integer => quote! { u32 },
-    //         AttributeType::IpAddr => quote! { Ipv4Addr },
-    //         AttributeType::Ipv6Addr => quote! { Ipv6Addr },
-    //         AttributeType::Octets | AttributeType::Ether | AttributeType::ABinary => quote! {impl Into<Vec<u8>> },
-    //         AttributeType::Date => quote! { SystemTime },
-    //         AttributeType::Byte => quote! { u8 },
-    //         AttributeType::Short => quote! { u16 },
-    //         AttributeType::Signed => quote! { i32 },
-    //         AttributeType::Tlv => quote! { Tlv },
-    //         AttributeType::Ipv4Prefix | AttributeType::Ipv6Prefix => quote! { Vec<u8> },
-    //         AttributeType::Ifid | AttributeType::InterfaceId => quote! { u64 },
-    //         AttributeType::Vsa => quote! {impl Into<Vec<u8>> },
-    //         _ => return, // Skip Unknown types
-    //     };
-
 
         let is_external = self.external_attributes.contains_key(&attr.name);
         let const_ident = format_ident!("{}_TYPE", attr.name.to_shouty_snake_case());

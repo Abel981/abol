@@ -1,8 +1,8 @@
 use anyhow::Context;
 use async_trait::async_trait;
-use radius_core::packet::{MAX_PACKET_SIZE, Packet};
-use radius_core::{HandlerResultt};
-use radius_core::{Request, Response};
+use abol_core::packet::{MAX_PACKET_SIZE, Packet};
+use abol_core::{HandlerResult};
+use abol_core::{Request, Response};
 use rt::net::UdpSocket;
 
 #[async_trait]
@@ -54,7 +54,6 @@ where
             .await
             .with_context(|| format!("Failed to bind UDP socket to {}", self.addr))?;
 
-        println!("RADIUS server listening on {}", self.addr);
 
         let mut buf = [0u8; MAX_PACKET_SIZE];
 

@@ -1,0 +1,13 @@
+[package]
+name = "abol-codegen"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+quote = "1.0"
+proc-macro2 = "1.0"
+heck = "0.5"
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+abol-parser = { workspace = true }
+abol-core = { workspace = true }

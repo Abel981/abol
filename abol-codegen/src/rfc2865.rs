@@ -1,4 +1,4 @@
-use radius_core::{attribute::FromRadiusAttribute, attribute::ToRadiusAttribute, packet::Packet};
+use abol_core::{attribute::FromRadiusAttribute, attribute::ToRadiusAttribute, packet::Packet};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::time::SystemTime;
 pub const USER_NAME_TYPE: u8 = 1u8;

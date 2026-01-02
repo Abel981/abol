@@ -2,7 +2,7 @@
 
 
 <p align="center">
-  <b>A high-performance,asynchronous, RADIUS implementation for Rust</b>
+  <b>A high-performance, asynchronous, RADIUS implementation for Rust</b>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 
 ## 📖 What is Abol?
 
-**Abol** is a high-performance, concurrent **RADIUS server and client
+**Abol** is a high-performance, asynchronous **RADIUS server
 framework** written in Rust.\
 It provides a robust, type-safe foundation for building authentication
 systems, featuring a powerful **dictionary-driven code generator** for
@@ -86,17 +86,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // if argon2::verify(&user_record.hash, user_pass.as_bytes()) { ... }
         
         if user_pass == expected_password {
-            println!("Authentication successful for: {}", user_name);
-
-            // Create Access-Accept (Code 2)
+            // Create Access-Accept
             let mut res_packet = request.packet.create_response(Code::AccessAccept);
             res_packet.set_reply_message(format!("Hello {}, access granted!", user_name));
 
             Ok(Response { packet: res_packet })
         } else {
-            println!("Authentication failed for: {}", user_name);
-
-            // Create Access-Reject (Code 3)
+          
+            // Create Access-Reject 
             let mut res_packet = request.packet.create_response(Code::AccessReject);
             res_packet.set_reply_message("Invalid credentials provided.");
 

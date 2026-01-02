@@ -1,14 +1,13 @@
-#[cfg(not(any(feature = "client", feature = "server")))]
+#[cfg(not(any( feature = "server")))]
 compile_error!(
-    "You must enable at least one feature from 'client' or 'server' for 'radius-protocol'. \
-     Example: `radius-protocol = { version = \"1.0\", features = [\"client\"] }` \
-     or `radius-protocol = { version = \"1.0\", features = [\"client\", \"server\"] }`"
+    "You must enable server feature for 'abol'. \
+     Example: `abol = { version = \"0.1.0\", features = [\"server\"] }`"
 );
 
-#[cfg(not(any(feature = "tokio", feature = "smol")))] // Add other runtimes here
+#[cfg(not(any(feature = "tokio", feature = "smol")))] 
 compile_error!(
-    "You must enable at least one runtime feature (e.g., 'tokio' or 'smol') for 'radius-protocol'. \
-     Example: `radius-protocol = { version = \"1.0\", features = [\"tokio\"] }`"
+    "You must enable at least one runtime feature (e.g., 'tokio' or 'smol') for 'abol'. \
+     Example: `abol = { version = \"0.1.0\", features = [\"tokio\"] }`"
 );
 
 
@@ -17,6 +16,9 @@ pub mod server {
 }
 
 pub mod core {
-    pub use core::*;
+    pub use abol_core::*;
+}
+pub mod codegen {
+    pub use abol_codegen::*;
 }
 

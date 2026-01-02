@@ -2,30 +2,36 @@
 name = "radius-protocol"
 version = "0.1.0"
 edition = "2024"
-authors = ["Abel W. Shimeles <abel.wen07@gmail.com>"]
-description = "Runtime Agnostic async client/server implementation for radius protocol"
+authors = ["Abel W. Shimeles <abel.wen0@gmail.com>"]
+description = "Runtime Agnostic async server implementation for radius protocol"
 keywords = ["async", "radius"]
 readme = "README.md"
 
 [workspace]
 resolver = "3"
-members = [ "client", "server", "rt" , "core", "dict_parser", "dict_gen"]
+members = ["server", "rt" , "abol-core", "abol-parser", "abol-codegen"]
 
 [features]
 # Runtime support features
-default = ["tokio", "client", "server"]
-tokio = ["rt/tokio","server/tokio"]
+default = ["tokio", "server"]
+tokio = ["rt/tokio"]
 smol = ["rt/smol"]
 
 # Client and server logical features
 client = []
 server = []
-
+[workspace.dependencies]
+abol-core = { path = "abol-core" }
+abol-parser = { path = "abol-parser" }
+abol-codegen = { path = "abol-codegen" }
+rt = { path = "rt" }
+server = { path = "server" }
 
 [dependencies]
-rt = { path = "rt", features = ["tokio"] }
-client = { path = "client" }
-server = { path = "server"}
+rt = { workspace = true, features = ["tokio"] }
+abol-core = { workspace = true }
+abol-codegen = { workspace = true }
+server = { workspace = true }
 async-trait = "0.1.88"
 anyhow = "1.0"
 rand = "0.9.2"
@@ -36,6 +42,8 @@ quote = "1.0.42"
 proc-macro2 = "1.0.103"
 heck = "0.5.0"
 clap = { version = "4.5.53", features = ["derive"] }
+
+
 
 
 

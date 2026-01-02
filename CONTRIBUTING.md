@@ -1,92 +1,152 @@
-Contributing to Abol ☕
+# ☕ Contributing to Abol
 
-First off, thank you for considering contributing to Abol! It's people like you that make the Rust ecosystem such a great place to build reliable software.
+First off, thank you for considering contributing to **Abol**!\
+It's people like you that make the Rust ecosystem such a great place to
+build reliable, high-performance software.
 
-This guide follows the best practices established by projects like tokio, serde, and rust-analyzer.
+This guide follows best practices established by projects like
+**tokio**, **serde**, and **rust-analyzer**.
 
-Table of Contents
+------------------------------------------------------------------------
 
-Code of Conduct
+## 📑 Table of Contents
 
-How Can I Contribute?
+-   [Code of Conduct](#-code-of-conduct)
+-   [How Can I Contribute?](#-how-can-i-contribute)
+    -   [Reporting Bugs](#reporting-bugs)
+    -   [Suggesting Enhancements](#suggesting-enhancements)
+    -   [Submitting Pull Requests](#submitting-pull-requests)
+-   [Development Environment](#-development-environment)
+-   [Pull Request Process](#-pull-request-process)
+-   [Coding Style](#-coding-style)
 
-Development Environment
+------------------------------------------------------------------------
 
-Pull Request Process
+## 🤝 Code of Conduct
 
-Coding Style
+By participating in this project, you agree to abide by the **[Rust Code
+of Conduct](https://www.rust-lang.org/policies/code-of-conduct)**.
 
-Code of Conduct
+We are committed to providing a **friendly, safe, and welcoming
+environment** for everyone.
 
-By participating in this project, you agree to abide by the Rust Code of Conduct. We are committed to providing a friendly, safe, and welcoming environment for all.
+------------------------------------------------------------------------
 
-How Can I Contribute?
+## 🛠 How Can I Contribute?
 
-Reporting Bugs
+### 🐞 Reporting Bugs
 
-Check the issue tracker to see if the bug has already been reported.
+Before reporting a bug:
 
-If not, open a new issue. Include a clear title, a description of the problem, and steps to reproduce (a minimal reproducible example is highly appreciated).
+-   Check the **issue tracker** to see if it has already been reported.
 
-Suggesting Enhancements
+If it hasn't:
 
-Open an issue with the "enhancement" label.
+-   Open a new issue
+-   Provide a **clear title**
+-   Describe the problem in detail
+-   Include **steps to reproduce**
+-   A **minimal reproducible example** is highly appreciated
 
-Explain the "why" behind the feature. How does it benefit the RADIUS community?
+------------------------------------------------------------------------
 
-Submitting Pull Requests
+### 💡 Suggesting Enhancements
 
-Small fixes: Feel free to submit a PR directly.
+-   Open an issue with the **`enhancement`** label
+-   Clearly explain the **motivation**
+-   Describe how the feature benefits the **RADIUS community**
+-   Include references to RFCs when applicable
 
-Large features: Please open an issue for discussion before putting in significant work. This ensures your efforts align with the project's roadmap.
+------------------------------------------------------------------------
 
-Development Environment
+### 🔧 Submitting Pull Requests
 
-To get started with the codebase:
+-   **Small fixes**\
+    You're welcome to submit a PR directly.
 
-Fork and Clone:
+-   **Large features**\
+    Please open an issue for discussion first to ensure alignment with
+    the project roadmap.
 
-git clone [https://github.com/youruser/abol.git](https://github.com/youruser/abol.git)
+------------------------------------------------------------------------
+
+## 🧰 Development Environment
+
+### Fork and Clone
+
+``` bash
+git clone https://github.com/youruser/abol.git
 cd abol
+```
 
+### Verify Setup
 
-Verify Setup:
-
+``` bash
 cargo test
+```
 
+### Code Generation Requirements
 
-Code Generation:
-Since Abol uses a code generator, ensure you have rustfmt installed so the generated traits are readable:
+Since Abol uses build-time code generation, ensure `rustfmt` is
+installed so generated traits remain readable:
 
+``` bash
 rustup component add rustfmt
+```
 
+------------------------------------------------------------------------
 
-Pull Request Process
+## 🔁 Pull Request Process
 
-Create a new branch for your feature/fix: git checkout -b feature/my-new-feature.
+1.  Create a new branch:
 
-Write your code and add tests for any new functionality.
+    ``` bash
+    git checkout -b feature/my-new-feature
+    ```
 
-Run the following suite to ensure everything is perfect:
+2.  Implement your changes and add tests where appropriate
 
-cargo fmt --all -- --check
+3.  Run the full quality gate:
 
-cargo clippy -- -D warnings
+    ``` bash
+    cargo fmt --all -- --check
+    cargo clippy -- -D warnings
+    cargo test
+    ```
 
-cargo test
+4.  Update `README.md` or documentation if public APIs changed
 
-Update the README.md or documentation if you've changed public APIs.
+5.  Open the Pull Request and wait for review 🚀
 
-Submit the PR and wait for a review!
+------------------------------------------------------------------------
 
-Coding Style
+## 🧹 Coding Style
 
-Idiomatic Rust: We follow the Rust API Guidelines.
+-   🦀 **Idiomatic Rust**\
+    Follow the [Rust API
+    Guidelines](https://rust-lang.github.io/api-guidelines/)
 
-Documentation: All public modules, structs, and methods should have doc comments (///). Use examples where possible.
+-   📚 **Documentation**\
+    All public modules, structs, and functions must have doc comments
+    (`///`)\
+    Include examples where possible
 
-Safety: Avoid unsafe unless strictly necessary for performance. If used, document the safety invariants.
+-   🔐 **Safety**\
+    Avoid `unsafe` unless strictly necessary\
+    If used, clearly document safety invariants
 
-Error Handling: Prefer thiserror for library-internal errors and anyhow for application-level server logic.
+-   ⚠️ **Error Handling**
 
-Happy Brewing! If you have questions, feel free to reach out via GitHub issues.
+    -   Use `thiserror` for library-internal errors
+    -   Use `anyhow` for application-level or server logic
+
+------------------------------------------------------------------------
+
+```{=html}
+<p align="center">
+```
+☕ `<b>`{=html}Happy Brewing!`</b>`{=html}`<br/>`{=html} If you have
+questions, feel free to reach out via GitHub issues.
+```{=html}
+</p>
+```

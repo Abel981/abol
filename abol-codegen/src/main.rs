@@ -1,6 +1,6 @@
 use clap::Parser;
-use dict_gen::Generator;
-use dict_parser::{FileOpener, dictionary::Dictionary};
+use abol_codegen::Generator;
+use abol_parser::{FileOpener, dictionary::Dictionary};
 use std::{fs, path::PathBuf};
 use anyhow::{Context, Result};
 
@@ -39,7 +39,7 @@ fn main() -> Result<()> {
 
         // Create a parser for this specific file's context
         let file_opener = FileOpener::new(root);
-        let parser = dict_parser::Parser::new(file_opener, args.ignore_identical_attributes);
+        let parser = abol_parser::Parser::new(file_opener, args.ignore_identical_attributes);
 
         println!("Parsing {:?}...", input_path);
         

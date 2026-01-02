@@ -1,7 +1,7 @@
-// use anyhow::Ok;
+
 use server::{Server, HandlerFn};
-use radius_core::{Code, HandlerResult, Request, Response, packet::Packet};
-use dict_gen::rfc2865::Rfc2865Ext;
+use abol_core::{Code, HandlerResult, Request, Response, packet::Packet};
+use abol_codegen::rfc2865::Rfc2865Ext;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Start server on all interfaces, port 1812, secret "testing123"
-    let server = Server::new("0.0.0.0:1812", "testing123".to_vec(), handler);
+    let server = Server::new("0.0.0.0:1812", "testing123", handler);
     
     // We pass a simple never-ending future for the shutdown signal for testing
     server.listen_and_serve().await?;
