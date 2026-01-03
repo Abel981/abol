@@ -91,8 +91,3 @@ impl TryFrom<u8> for Code {
     }
 }
 
-// struct Attribute {
-//     pub attr_type: u8,
-//     pub length: u8,
-//     pub value: Vec<u8>,
-// }

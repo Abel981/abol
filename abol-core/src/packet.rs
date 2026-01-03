@@ -205,10 +205,9 @@ impl Packet {
         self.attributes.encode_to(&mut b[20..]);
         Ok(b)
     }
-    pub fn verify_request(&self, secret: impl Into<Vec<u8>>) -> bool {
+    pub fn verify_request(&self, secret: &[u8]) -> bool {
         // The packet struct likely already stores the shared secret,
         // but for a robust verify method, it's best to use the secret passed in.
-        let secret = secret.into();
         if secret.is_empty() {
             return false;
         }
@@ -552,11 +551,66 @@ mod tests {
 
     #[test]
     fn test_verify_request_access_request_always_true() {
-        let secret = "secret";
+        let secret = b"secret";
         let packet = Packet::new(Code::AccessRequest, secret);
         // Access-Request doesn't use the header authenticator for verification
         // (it uses it for password decryption instead)
         assert!(packet.verify_request(secret));
+    }
+
+     #[test]
+    fn test_user_password_roundtrip() {
+        let secret = b"shared-secret";
+        let mut packet = Packet::new(Code::AccessRequest, secret);
+        packet.authenticator = [0x42; 16];
+
+        let original = b"very-secure-password-123";
+        let encrypted = packet.encrypt_user_password(original).expect("Encryption failed");
+        let decrypted = packet.decrypt_user_password(&encrypted).expect("Decryption failed");
+
+        assert_eq!(original.to_vec(), decrypted);
+    }
+
+    #[test]
+    fn test_tunnel_password_roundtrip() {
+        let secret = b"shared-secret";
+        let mut packet = Packet::new(Code::AccessRequest, secret);
+        packet.authenticator = [0x77; 16];
+
+        let original = b"tunnel-secret-password";
+        let encrypted = packet.encrypt_tunnel_password(original).expect("Tunnel encryption failed");
+        let decrypted = packet.decrypt_tunnel_password(&encrypted).expect("Tunnel decryption failed");
+
+        assert_eq!(original.to_vec(), decrypted);
+        // Verify salt is present (first 2 bytes) and length is correct
+        assert_eq!(encrypted.len(), 2 + 32); // 2 bytes salt + 2 blocks of 16
+        assert!(encrypted[0] >= 0x80, "Salt MSB must be set");
+    }
+
+      #[test]
+    fn test_encrypt_user_password_blocks() {
+        let secret = b"mysecret";
+        let mut packet = Packet::new(Code::AccessRequest, secret);
+        packet.authenticator = [0x11; 16]; // Fixed authenticator for deterministic test
+
+        // 1. Short password (1 block)
+        let pass1 = b"password";
+        let enc1 = packet.encrypt_user_password(pass1).unwrap();
+        assert_eq!(enc1.len(), 16);
+
+        // 2. Long password (2 blocks)
+        let pass2 = b"this-is-a-very-long-password-exceeding-16-bytes";
+        let enc2 = packet.encrypt_user_password(pass2).unwrap();
+        assert_eq!(enc2.len(), 48); // 48 is the next multiple of 16 for this length
+
+        // 3. Round-trip logic check (manual decryption)
+        let mut hasher = Md5::new();
+        hasher.update(secret);
+        hasher.update(&packet.authenticator);
+        let b1 = hasher.finalize();
+        
+        let decrypted_p1 = enc1[0] ^ b1[0];
+        assert_eq!(decrypted_p1, b'p');
     }
 
  
