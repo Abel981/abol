@@ -1,7 +1,7 @@
 # ☕ Abol
 
 
-<img src="assets/abol_logo.png" alt="Abol Logo" width="200" align="right"/>
+<img src="assets/abol_logo.png" alt="Abol Logo" width="400" align="right"/>
 
 
 
