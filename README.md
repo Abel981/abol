@@ -1,16 +1,32 @@
 # ☕ Abol
 
 
-<p align="center">
+<img src="assets/abol_logo.png" alt="Abol Logo" width="200" align="right"/>
+
+
+
+<p>
   <b>A high-performance, asynchronous, RADIUS implementation for Rust</b>
 </p>
 
-<p align="center">
+<p >
   Type-safe • Runtime-agnostic • Dictionary-driven
 </p>
 
 
-------------------------------------------------------------------------
+<p>
+🚀 Quick Start
+
+``` toml
+[dependencies]
+abol = "0.1.0"
+tokio = { version = "1", features = ["full"] }
+# or
+# smol = "1.3"
+```
+
+</p>
+
 
 ## 📖 What is Abol?
 
@@ -49,17 +65,7 @@ protocol extensions.
     Built 100% in **safe Rust**, protecting your authentication gateway
     from buffer overflows.
 
-------------------------------------------------------------------------
 
-## 🚀 Quick Start
-
-``` toml
-[dependencies]
-abol = "0.1.0"
-tokio = { version = "1", features = ["full"] }
-# or
-# smol = "1.3"
-```
 
 ------------------------------------------------------------------------
 
