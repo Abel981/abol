@@ -1,8 +1,8 @@
 ☕ Abol
 
-<table width="100%" border="0" cellspacing="0" cellpadding="0">
+<table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse; border: none;">
 <tr>
-<td width="65%" valign="top">
+<td width="65%" valign="top" style="border: none;">
 <h1>A high-performance, asynchronous RADIUS implementation for Rust</h1>
 <p>
 Type-safe • Runtime-agnostic • Dictionary-driven
@@ -11,7 +11,7 @@ Type-safe • Runtime-agnostic • Dictionary-driven
 <b>Abol</b> is a high-performance, asynchronous <b>RADIUS server framework</b> written in Rust. It provides a robust, type-safe foundation for building authentication systems, featuring a powerful dictionary-driven code generator for protocol extensions.
 </p>
 </td>
-<td width="35%" align="right" valign="top">
+<td width="35%" align="right" valign="top" style="border: none;">
 <img src="assets/abol_logo.png" alt="Abol Logo" width="350" style="max-width: 100%; height: auto;" />
 </td>
 </tr>
