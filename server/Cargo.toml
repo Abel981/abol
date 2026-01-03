@@ -2,6 +2,7 @@
 name = "server"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 rt = {path = "../rt",features = ["tokio"]}
