@@ -1,15 +1,28 @@
 use std::fmt;
 use thiserror::Error;
 
-#[derive(Default, Clone)]
+/// Represents a complete RADIUS dictionary containing standard attributes,
+/// values for enumerated types, and vendor-specific definitions.
+#[derive(Default, Clone, Debug)]
 pub struct Dictionary {
+    /// List of standard (non-vendor) RADIUS attributes.
     pub attributes: Vec<DictionaryAttribute>,
+    /// Enumerated value mappings for attributes (e.g., Service-Type values).
     pub values: Vec<DictionaryValue>,
+    /// Vendor definitions including their unique VSAs.
     pub vendors: Vec<DictionaryVendor>,
 }
 impl Dictionary {
-    /// Merges another dictionary into this one.
-    /// Returns a new Dictionary if successful, or an Error if conflicts are found.
+    /// Merges two dictionaries into a single combined dictionary.
+    ///
+    /// This performs strict validation to ensure there are no collisions between
+    /// attribute names, OIDs, or vendor definitions.
+    ///
+    /// # Errors
+    /// Returns `DictionaryError::Conflict` if:
+    /// * Standard attribute names or OIDs collide.
+    /// * Vendor IDs or names are inconsistent between dictionaries.
+    /// * Attributes within a specific vendor collide.
     pub fn merge(d1: &Dictionary, d2: &Dictionary) -> Result<Dictionary, DictionaryError> {
         // 1. Validate top-level attribute conflicts
         for attr in &d2.attributes {
@@ -117,11 +130,16 @@ pub struct DictionaryAttribute {
     pub has_tag: Option<bool>,
     pub concat: Option<bool>,
 }
-#[derive(Debug, PartialEq, Eq, Clone)]
+/// The Object Identifier (OID) for a RADIUS attribute, consisting of
+/// an optional vendor ID and the attribute code.
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct Oid {
+    /// The SMI Private Enterprise Number (PEN). None for standard attributes.
     pub vendor: Option<u32>,
+    /// The attribute type code (0-255 for standard, vendor-specific for VSAs).
     pub code: u32,
 }
+
 impl fmt::Display for Oid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.vendor {
@@ -130,11 +148,21 @@ impl fmt::Display for Oid {
         }
     }
 }
+/// Flags representing size constraints on attribute values.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SizeFlag {
-    Any,             // no size constraint (default)
-    Exact(u32),      // size=16
-    Range(u32, u32), // size=1-253
+    /// No constraint (default).
+    Any,
+    /// Value must be exactly N bytes.
+    Exact(u32),
+    /// Value must be between N and M bytes (inclusive).
+    Range(u32, u32),
+}
+
+impl Default for SizeFlag {
+    fn default() -> Self {
+        SizeFlag::Any
+    }
 }
 
 impl SizeFlag {
@@ -142,16 +170,139 @@ impl SizeFlag {
         !matches!(self, SizeFlag::Any)
     }
 }
+/// A mapping between a string name and a numeric value for an attribute.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DictionaryValue {
+    /// The name of the attribute this value belongs to.
     pub attribute_name: String,
+    /// The name of the specific value (e.g., "Access-Request").
     pub name: String,
+    /// The numeric representation of the value.
     pub value: u64,
 }
+/// A RADIUS Vendor definition.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DictionaryVendor {
+    /// The name of the vendor (e.g., "Cisco").
     pub name: String,
+    /// The SMI Private Enterprise Number.
     pub code: u32,
+    /// Attributes specific to this vendor.
     pub attributes: Vec<DictionaryAttribute>,
+    /// Enumerated value mappings for this vendor's attributes.
     pub values: Vec<DictionaryValue>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mock_attr(name: &str, code: u32) -> DictionaryAttribute {
+        DictionaryAttribute {
+            name: name.to_string(),
+            oid: Oid { vendor: None, code },
+            attr_type: AttributeType::Integer,
+            size: SizeFlag::Any,
+            encrypt: None,
+            has_tag: None,
+            concat: None,
+        }
+    }
+
+    #[test]
+    fn test_merge_success() {
+        let mut d1 = Dictionary::default();
+        d1.attributes.push(mock_attr("User-Name", 1));
+
+        let mut d2 = Dictionary::default();
+        d2.attributes.push(mock_attr("Password", 2));
+
+        let merged = Dictionary::merge(&d1, &d2).unwrap();
+        assert_eq!(merged.attributes.len(), 2);
+    }
+
+    #[test]
+    fn test_merge_conflict_name() {
+        let mut d1 = Dictionary::default();
+        d1.attributes.push(mock_attr("User-Name", 1));
+
+        let mut d2 = Dictionary::default();
+        d2.attributes.push(mock_attr("User-Name", 2)); // Conflict on name
+
+        let result = Dictionary::merge(&d1, &d2);
+        assert!(matches!(result, Err(DictionaryError::Conflict(m)) if m.contains("name")));
+    }
+
+    #[test]
+    fn test_merge_conflict_oid() {
+        let mut d1 = Dictionary::default();
+        d1.attributes.push(mock_attr("User-Name", 1));
+
+        let mut d2 = Dictionary::default();
+        d2.attributes.push(mock_attr("Login-Name", 1)); // Conflict on OID
+
+        let result = Dictionary::merge(&d1, &d2);
+        assert!(matches!(result, Err(DictionaryError::Conflict(m)) if m.contains("OID")));
+    }
+
+    #[test]
+    fn test_vendor_merge_and_conflict() {
+        let v1 = DictionaryVendor {
+            name: "Cisco".to_string(),
+            code: 9,
+            attributes: vec![mock_attr("Cisco-AVPair", 1)],
+            values: vec![],
+        };
+
+        let mut d1 = Dictionary::default();
+        d1.vendors.push(v1);
+
+        // Case 1: Merge different attributes into same vendor
+        let v2 = DictionaryVendor {
+            name: "Cisco".to_string(),
+            code: 9,
+            attributes: vec![mock_attr("Cisco-Other", 2)],
+            values: vec![],
+        };
+        let mut d2 = Dictionary::default();
+        d2.vendors.push(v2);
+
+        let merged = Dictionary::merge(&d1, &d2).expect("Should merge vendor attributes");
+        assert_eq!(merged.vendors[0].attributes.len(), 2);
+
+        // Case 2: Conflict on vendor attribute OID
+        let v3 = DictionaryVendor {
+            name: "Cisco".to_string(),
+            code: 9,
+            attributes: vec![mock_attr("Cisco-Duplicate", 1)], // OID 1 already exists in d1's Cisco vendor
+            values: vec![],
+        };
+        let mut d3 = Dictionary::default();
+        d3.vendors.push(v3);
+
+        let result = Dictionary::merge(&d1, &d3);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_vendor_mismatch_definition() {
+        let mut d1 = Dictionary::default();
+        d1.vendors.push(DictionaryVendor {
+            name: "Cisco".to_string(),
+            code: 9,
+            attributes: vec![],
+            values: vec![],
+        });
+
+        let mut d2 = Dictionary::default();
+        d2.vendors.push(DictionaryVendor {
+            name: "Cisco".to_string(),
+            code: 10, // Same name, different code
+            attributes: vec![],
+            values: vec![],
+        });
+
+        let result = Dictionary::merge(&d1, &d2);
+        assert!(matches!(result, Err(DictionaryError::Conflict(_))));
+    }
 }
