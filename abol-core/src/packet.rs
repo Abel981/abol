@@ -1,6 +1,5 @@
 use md5::{Digest, Md5};
 use rand::Rng;
-use std::{io::Cursor, net::{Ipv4Addr, Ipv6Addr}, time::{Duration, SystemTime, UNIX_EPOCH}};
 use thiserror::Error;
 use rand::RngCore;
 
@@ -10,6 +9,7 @@ use crate::{
 };
 
 pub const MAX_PACKET_SIZE: usize = 4096;
+#[derive(Debug, Clone)]
 pub struct Packet {
     pub code: Code,
     pub identifier: u8,
@@ -18,7 +18,7 @@ pub struct Packet {
     pub secret: Vec<u8>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum PacketParseError {
     #[error("Packet not at least 20 bytes long")]
     TooShortHeader,
@@ -26,34 +26,72 @@ pub enum PacketParseError {
     UnknownPacketCode,
     #[error("Invalid packet length: {0}")]
     InvalidLength(usize),
-    #[error("I/O error: {0}")]
-    IoError(#[from] std::io::Error),
     #[error("Attribute parsing failed: {0}")]
     AttributeError(AttributeParseError),
 }
 impl Packet {
-    pub fn new(code: Code, secret: Vec<u8>) -> Self {
-        let mut buff = [0u8; 17];
-        rand::rng().fill(&mut buff);
-        let identifier = buff[0];
+   /// Creates a new RADIUS packet with a cryptographically random authenticator.
+///
+/// This constructor initializes a [`Packet`] with:
+/// - A randomly generated 16-byte authenticator
+/// - A randomly chosen packet identifier
+/// - An empty attribute set
+/// - The shared secret used for request/response authentication
+///
+/// The authenticator is generated using the thread-local random number
+/// generator and is suitable for use in authentication and accounting
+/// packets as defined by RFC 2865.
+///
+/// # Parameters
+///
+/// - `code`: The RADIUS packet code (e.g. `AccessRequest`, `AccessAccept`)
+/// - `secret`: The shared secret between the client and the RADIUS server
+///
+/// # Security
+///
+/// The provided `secret` is copied into the packet and later used for
+/// authenticator verification and password obfuscation. Callers should
+/// take care to protect this value and avoid reusing it across unrelated
+/// security domains.
+///
+/// # Examples
+///
+/// ```rust
+/// use abol::core::{Packet, Code};
+///
+/// let packet = Packet::new(Code::AccessRequest, "shared-secret");
+/// assert_eq!(packet.attributes.len(), 0);
+/// ```
+///
+/// # Notes
+///
+/// This function does not perform any validation on the secret length.
+/// Validation is deferred to packet encoding and verification stages.
+    pub fn new(code: Code, secret: impl Into<Vec<u8>>) -> Self {
+        let mut rng = rand::rng();
         let mut authenticator = [0u8; 16];
-        authenticator.copy_from_slice(&buff[1..17]);
+        rng.fill_bytes(&mut authenticator);
+
         Packet {
             code,
-            identifier,
+            identifier: rng.random::<u8>(),
             authenticator,
             attributes: Attributes(Vec::new()),
-            secret,
+            secret: secret.into(),
         }
     }
 
+
+
     pub fn parse_packet<'a>(b: &'a [u8], secret: &'a [u8]) -> Result<Self, PacketParseError> {
-        if b.len() < 20 || b.len() > MAX_PACKET_SIZE {
+        if b.len() < 20 {
             return Err(PacketParseError::TooShortHeader);
         }
-        let mut cursor = Cursor::new(b);
-        cursor.set_position(2);
 
+        if b.len() > MAX_PACKET_SIZE {
+            return Err(PacketParseError::InvalidLength(b.len()));
+        }
+      
         let length = u16::from_be_bytes([b[2], b[3]]);
         let length = usize::from(length);
 
@@ -167,9 +205,10 @@ impl Packet {
         self.attributes.encode_to(&mut b[20..]);
         Ok(b)
     }
-    pub fn verify_request(&self, secret: &[u8]) -> bool {
+    pub fn verify_request(&self, secret: impl Into<Vec<u8>>) -> bool {
         // The packet struct likely already stores the shared secret,
         // but for a robust verify method, it's best to use the secret passed in.
+        let secret = secret.into();
         if secret.is_empty() {
             return false;
         }
@@ -221,27 +260,6 @@ impl Packet {
         }
     }
 
-    pub fn verify_response(&self, request_packet: &Packet, secret: &[u8]) -> bool {
-        if secret.is_empty() {
-            return false;
-        }
-        let response_raw = self.encode_raw();
-        if response_raw.is_err() {
-            return false;
-        }
-        let response_raw = response_raw.unwrap();
-        if response_raw.len() < 20 {
-            return false;
-        }
-        let mut hasher = Md5::new();
-        hasher.update(&response_raw[0..4]);
-        hasher.update(&request_packet.authenticator);
-        hasher.update(&response_raw[20..]);
-        hasher.update(secret);
-        let calculated_hash = hasher.finalize();
-        let calculated_bytes: [u8; 16] = calculated_hash.into();
-        calculated_bytes == self.authenticator
-    }
 
     pub fn get_attribute(&self, key: u8) -> Option<&AttributeValue> {
         self.attributes.get(key)
@@ -434,3 +452,112 @@ impl From<AttributeParseError> for PacketParseError {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+   #[test]
+    fn test_packet_new_with_various_types() {
+        // Works with string literals
+        let _p1 = Packet::new(Code::AccessRequest, "mysecret");
+        
+        // Works with byte slices
+        let _p2 = Packet::new(Code::AccessRequest, b"mysecret" as &[u8]);
+        
+        // Works with owned Vectors (move, no allocation)
+        let secret_vec = vec![1, 2, 3, 4];
+        let _p3 = Packet::new(Code::AccessRequest, secret_vec);
+    }
+
+      #[test]
+    fn parse_valid_packet() {
+        let secret = b"shared-secret";
+
+        // Minimal valid RADIUS packet (20 bytes, no attributes)
+        let mut buf = vec![0u8; 20];
+        buf[0] = Code::AccessRequest as u8; // Code
+        buf[1] = 42;                        // Identifier
+        buf[2..4].copy_from_slice(&(20u16.to_be_bytes())); // Length
+
+        // Authenticator (16 bytes)
+        for i in 4..20 {
+            buf[i] = i as u8;
+        }
+
+        let packet = Packet::parse_packet(&buf, secret).expect("packet should parse");
+
+        assert_eq!(packet.code, Code::AccessRequest);
+        assert_eq!(packet.identifier, 42);
+        assert_eq!(packet.authenticator, buf[4..20]);
+        assert_eq!(packet.attributes, Attributes(Vec::new()));
+        assert_eq!(packet.secret, secret);
+    }
+
+    #[test]
+    fn parse_packet_too_short() {
+        let secret = b"shared-secret";
+        let buf = vec![0u8; 10]; // shorter than 20 bytes
+
+        let err = Packet::parse_packet(&buf, secret).unwrap_err();
+
+        assert_eq!(err, PacketParseError::TooShortHeader);
+    }
+      #[test]
+    fn test_encode_access_request_preserves_authenticator() {
+        let mut packet = Packet::new(Code::AccessRequest, "secret");
+        let auth = [1u8; 16];
+        packet.authenticator = auth;
+        
+        let encoded = packet.encode().unwrap();
+        assert_eq!(&encoded[4..20], &auth);
+    }
+      #[test]
+    fn test_verify_request_accounting_valid() {
+        let secret = b"super-secret";
+        let mut packet = Packet::new(Code::AccountingRequest, secret.to_vec());
+        
+        // encode() calculates the valid accounting authenticator
+        let encoded_bytes = packet.encode().unwrap();
+        
+        // Parse it back to simulate receiving it
+        let received = Packet::parse_packet(&encoded_bytes, secret).unwrap();
+        
+        assert!(received.verify_request(secret));
+    }
+
+    #[test]
+    fn test_verify_request_accounting_invalid_secret() {
+        let secret = b"real-secret";
+        let wrong_secret = b"hacker-secret";
+        let mut packet = Packet::new(Code::AccountingRequest, secret.to_vec());
+        
+        let encoded_bytes = packet.encode().unwrap();
+        let received = Packet::parse_packet(&encoded_bytes, secret).unwrap();
+        
+        assert!(!received.verify_request(wrong_secret));
+    }
+
+    #[test]
+    fn test_verify_request_accounting_tampered_data() {
+        let secret = b"secret";
+        let mut packet = Packet::new(Code::AccountingRequest, secret);
+        let mut encoded_bytes = packet.encode().unwrap();
+        
+        // Tamper with the identifier after encoding
+        encoded_bytes[1] ^= 0xFF; 
+        
+        let received = Packet::parse_packet(&encoded_bytes, secret).unwrap();
+        assert!(!received.verify_request(secret));
+    }
+
+    #[test]
+    fn test_verify_request_access_request_always_true() {
+        let secret = "secret";
+        let packet = Packet::new(Code::AccessRequest, secret);
+        // Access-Request doesn't use the header authenticator for verification
+        // (it uses it for password decryption instead)
+        assert!(packet.verify_request(secret));
+    }
+
+ 
+}

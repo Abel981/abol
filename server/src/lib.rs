@@ -74,7 +74,6 @@ where
                 }
             };
 
-            println!("[packet: {:?}", packet.identifier);
             let is_packet_valid = packet.verify_request(&self.shared_secret);
             if !is_packet_valid {
                 println!("Invalid packet authenticator from {}", peer_addr);

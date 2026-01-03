@@ -145,7 +145,7 @@ rustup component add rustfmt
 
 <p align="center">
 
- <b>☕Happy Brewing!`</b><br/>If you have
+ <b>☕Happy Brewing!</b><br/>If you have
 questions, feel free to reach out via GitHub issues.
 
 </p>

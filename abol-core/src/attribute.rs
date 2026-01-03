@@ -2,11 +2,13 @@ use std::{net::{Ipv4Addr, Ipv6Addr}, time::{Duration, SystemTime, UNIX_EPOCH}};
 pub type AttributeType = u8;
 pub type AttributeValue = Vec<u8>;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Avp {
     pub attribute_type: AttributeType,
     pub value: AttributeValue,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Attributes(pub Vec<Avp>);
 impl Attributes {
     pub fn new() -> Self {
@@ -14,7 +16,7 @@ impl Attributes {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum AttributeParseError {
     #[error("Buffer too short for attribute header")]
     ShortBuffer,
