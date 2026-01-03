@@ -14,10 +14,16 @@ impl Dictionary {
         // 1. Validate top-level attribute conflicts
         for attr in &d2.attributes {
             if d1.attributes.iter().any(|a| a.name == attr.name) {
-                return Err(DictionaryError::Conflict(format!("duplicate attribute name: {}", attr.name)));
+                return Err(DictionaryError::Conflict(format!(
+                    "duplicate attribute name: {}",
+                    attr.name
+                )));
             }
             if d1.attributes.iter().any(|a| a.oid == attr.oid) {
-                return Err(DictionaryError::Conflict(format!("duplicate attribute OID: {}", attr.oid)));
+                return Err(DictionaryError::Conflict(format!(
+                    "duplicate attribute OID: {}",
+                    attr.oid
+                )));
             }
         }
 
@@ -38,10 +44,16 @@ impl Dictionary {
             if let Some(existing) = existing_by_name {
                 for attr in &vendor.attributes {
                     if existing.attributes.iter().any(|a| a.name == attr.name) {
-                        return Err(DictionaryError::Conflict(format!("duplicate vendor attribute name: {}", attr.name)));
+                        return Err(DictionaryError::Conflict(format!(
+                            "duplicate vendor attribute name: {}",
+                            attr.name
+                        )));
                     }
                     if existing.attributes.iter().any(|a| a.oid == attr.oid) {
-                        return Err(DictionaryError::Conflict(format!("duplicate vendor attribute OID: {}", attr.oid)));
+                        return Err(DictionaryError::Conflict(format!(
+                            "duplicate vendor attribute OID: {}",
+                            attr.oid
+                        )));
                     }
                 }
             }
@@ -73,7 +85,7 @@ pub enum DictionaryError {
     #[error("Dictionary conflict: {0}")]
     Conflict(String),
 }
-#[derive(Debug,PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AttributeType {
     String,
     Integer,
@@ -95,7 +107,7 @@ pub enum AttributeType {
     //todo check unknown type and add all attributes
     Unknown(String),
 }
-#[derive(Debug,PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DictionaryAttribute {
     pub name: String,
     pub oid: Oid,
@@ -105,7 +117,7 @@ pub struct DictionaryAttribute {
     pub has_tag: Option<bool>,
     pub concat: Option<bool>,
 }
-#[derive(Debug,PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Oid {
     pub vendor: Option<u32>,
     pub code: u32,
@@ -118,7 +130,7 @@ impl fmt::Display for Oid {
         }
     }
 }
-#[derive(Debug,PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SizeFlag {
     Any,             // no size constraint (default)
     Exact(u32),      // size=16

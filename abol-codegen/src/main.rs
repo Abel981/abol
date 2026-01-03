@@ -1,8 +1,8 @@
-use clap::Parser;
 use abol_codegen::Generator;
 use abol_parser::{FileOpener, dictionary::Dictionary};
-use std::{fs, path::PathBuf};
 use anyhow::{Context, Result};
+use clap::Parser;
+use std::{fs, path::PathBuf};
 
 #[derive(Parser)]
 struct Args {
@@ -29,10 +29,11 @@ fn main() -> Result<()> {
     let mut final_dict = Dictionary::default();
 
     for input_path in &args.inputs {
-        let root = input_path
-            .parent()
-            .context(format!("Could not determine parent directory of {:?}", input_path))?;
-        
+        let root = input_path.parent().context(format!(
+            "Could not determine parent directory of {:?}",
+            input_path
+        ))?;
+
         let file_name = input_path
             .file_name()
             .context(format!("Could not determine filename of {:?}", input_path))?;
@@ -42,7 +43,7 @@ fn main() -> Result<()> {
         let parser = abol_parser::Parser::new(file_opener, args.ignore_identical_attributes);
 
         println!("Parsing {:?}...", input_path);
-        
+
         // 2. Parse the individual file
         let next_dict = parser
             .parse_dictionary(file_name)
@@ -80,7 +81,7 @@ fn main() -> Result<()> {
         .with_context(|| format!("Failed to write output file {:?}", final_output_path))?;
 
     println!(
-        "Successfully merged {} files and generated Rust code at {:?}", 
+        "Successfully merged {} files and generated Rust code at {:?}",
         args.inputs.len(),
         final_output_path
     );

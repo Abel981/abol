@@ -1,4 +1,7 @@
-use std::{net::{Ipv4Addr, Ipv6Addr}, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{
+    net::{Ipv4Addr, Ipv6Addr},
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 pub type AttributeType = u8;
 pub type AttributeValue = Vec<u8>;
 
@@ -136,8 +139,6 @@ impl Attributes {
             value: vsa_value,
         });
     }
-
-    
 }
 pub trait FromRadiusAttribute: Sized {
     fn from_bytes(bytes: &[u8]) -> Option<Self>;
@@ -277,4 +278,3 @@ impl ToRadiusAttribute for Tlv {
         v
     }
 }
-

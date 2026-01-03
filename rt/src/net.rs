@@ -30,8 +30,6 @@ impl UdpSocket {
             UdpSocket::TokioUdpSocket(socket) => socket.recv_from(buf).await.map_err(Into::into),
             #[cfg(feature = "smol")]
             UdpSocket::SmolUdpSocket(socket) => socket.recv_from(buf).await.map_err(Into::into),
-            
-           
         }
     }
     pub async fn send_to(&self, buf: &[u8], target: std::net::SocketAddr) -> anyhow::Result<usize> {
@@ -44,6 +42,14 @@ impl UdpSocket {
             UdpSocket::SmolUdpSocket(socket) => {
                 socket.send_to(buf, target).await.map_err(Into::into)
             }
+        }
+    }
+    pub fn local_addr(&self) -> anyhow::Result<std::net::SocketAddr> {
+        match self {
+            #[cfg(feature = "tokio")]
+            UdpSocket::TokioUdpSocket(socket) => socket.local_addr().map_err(Into::into),
+            #[cfg(feature = "smol")]
+            UdpSocket::SmolUdpSocket(socket) => socket.local_addr().map_err(Into::into),
         }
     }
 }

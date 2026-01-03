@@ -1,11 +1,14 @@
 use md5::{Digest, Md5};
 use rand::Rng;
-use thiserror::Error;
 use rand::RngCore;
+use thiserror::Error;
 
 use crate::{
     Code,
-    attribute::{self, AttributeParseError, AttributeValue, Attributes, FromRadiusAttribute, ToRadiusAttribute},
+    attribute::{
+        self, AttributeParseError, AttributeValue, Attributes, FromRadiusAttribute,
+        ToRadiusAttribute,
+    },
 };
 
 pub const MAX_PACKET_SIZE: usize = 4096;
@@ -30,43 +33,43 @@ pub enum PacketParseError {
     AttributeError(AttributeParseError),
 }
 impl Packet {
-   /// Creates a new RADIUS packet with a cryptographically random authenticator.
-///
-/// This constructor initializes a [`Packet`] with:
-/// - A randomly generated 16-byte authenticator
-/// - A randomly chosen packet identifier
-/// - An empty attribute set
-/// - The shared secret used for request/response authentication
-///
-/// The authenticator is generated using the thread-local random number
-/// generator and is suitable for use in authentication and accounting
-/// packets as defined by RFC 2865.
-///
-/// # Parameters
-///
-/// - `code`: The RADIUS packet code (e.g. `AccessRequest`, `AccessAccept`)
-/// - `secret`: The shared secret between the client and the RADIUS server
-///
-/// # Security
-///
-/// The provided `secret` is copied into the packet and later used for
-/// authenticator verification and password obfuscation. Callers should
-/// take care to protect this value and avoid reusing it across unrelated
-/// security domains.
-///
-/// # Examples
-///
-/// ```rust
-/// use abol::core::{Packet, Code};
-///
-/// let packet = Packet::new(Code::AccessRequest, "shared-secret");
-/// assert_eq!(packet.attributes.len(), 0);
-/// ```
-///
-/// # Notes
-///
-/// This function does not perform any validation on the secret length.
-/// Validation is deferred to packet encoding and verification stages.
+    /// Creates a new RADIUS packet with a cryptographically random authenticator.
+    ///
+    /// This constructor initializes a [`Packet`] with:
+    /// - A randomly generated 16-byte authenticator
+    /// - A randomly chosen packet identifier
+    /// - An empty attribute set
+    /// - The shared secret used for request/response authentication
+    ///
+    /// The authenticator is generated using the thread-local random number
+    /// generator and is suitable for use in authentication and accounting
+    /// packets as defined by RFC 2865.
+    ///
+    /// # Parameters
+    ///
+    /// - `code`: The RADIUS packet code (e.g. `AccessRequest`, `AccessAccept`)
+    /// - `secret`: The shared secret between the client and the RADIUS server
+    ///
+    /// # Security
+    ///
+    /// The provided `secret` is copied into the packet and later used for
+    /// authenticator verification and password obfuscation. Callers should
+    /// take care to protect this value and avoid reusing it across unrelated
+    /// security domains.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use abol::core::{Packet, Code};
+    ///
+    /// let packet = Packet::new(Code::AccessRequest, "shared-secret");
+    /// assert_eq!(packet.attributes.len(), 0);
+    /// ```
+    ///
+    /// # Notes
+    ///
+    /// This function does not perform any validation on the secret length.
+    /// Validation is deferred to packet encoding and verification stages.
     pub fn new(code: Code, secret: impl Into<Vec<u8>>) -> Self {
         let mut rng = rand::rng();
         let mut authenticator = [0u8; 16];
@@ -81,8 +84,6 @@ impl Packet {
         }
     }
 
-
-
     pub fn parse_packet<'a>(b: &'a [u8], secret: &'a [u8]) -> Result<Self, PacketParseError> {
         if b.len() < 20 {
             return Err(PacketParseError::TooShortHeader);
@@ -91,7 +92,7 @@ impl Packet {
         if b.len() > MAX_PACKET_SIZE {
             return Err(PacketParseError::InvalidLength(b.len()));
         }
-      
+
         let length = u16::from_be_bytes([b[2], b[3]]);
         let length = usize::from(length);
 
@@ -259,7 +260,6 @@ impl Packet {
         }
     }
 
-
     pub fn get_attribute(&self, key: u8) -> Option<&AttributeValue> {
         self.attributes.get(key)
     }
@@ -273,17 +273,20 @@ impl Packet {
     pub fn set_vsa_attribute(&mut self, vendor_id: u32, vendor_type: u8, value: AttributeValue) {
         self.attributes
             .set_vsa_attribute(vendor_id, vendor_type, value);
-
     }
-          /// Encrypts a plaintext password according to RFC 2865 (User-Password)
+    /// Encrypts a plaintext password according to RFC 2865 (User-Password)
     pub fn encrypt_user_password(&self, plaintext: &[u8]) -> Option<Vec<u8>> {
         if plaintext.len() > 128 || self.secret.is_empty() {
             return None;
         }
 
-        let chunks = if plaintext.is_empty() { 1 } else { (plaintext.len() + 15) / 16 };
+        let chunks = if plaintext.is_empty() {
+            1
+        } else {
+            (plaintext.len() + 15) / 16
+        };
         let mut enc = Vec::with_capacity(chunks * 16);
-        
+
         let mut hasher = Md5::new();
         hasher.update(&self.secret);
         hasher.update(&self.authenticator);
@@ -299,12 +302,16 @@ impl Packet {
         for i in 1..chunks {
             hasher = Md5::new();
             hasher.update(&self.secret);
-            hasher.update(&enc[(i-1)*16..i*16]);
+            hasher.update(&enc[(i - 1) * 16..i * 16]);
             b = hasher.finalize();
 
             for j in 0..16 {
                 let offset = i * 16 + j;
-                let p_byte = if offset < plaintext.len() { plaintext[offset] } else { 0 };
+                let p_byte = if offset < plaintext.len() {
+                    plaintext[offset]
+                } else {
+                    0
+                };
                 enc.push(p_byte ^ b[j]);
             }
         }
@@ -325,17 +332,23 @@ impl Packet {
             hasher.update(&self.secret);
             hasher.update(&last_round);
             let b = hasher.finalize();
-            for i in 0..16 { plaintext.push(chunk[i] ^ b[i]); }
+            for i in 0..16 {
+                plaintext.push(chunk[i] ^ b[i]);
+            }
             last_round = chunk.to_vec();
         }
         let mut end = plaintext.len();
-        while end > 0 && plaintext[end - 1] == 0 { end -= 1; }
+        while end > 0 && plaintext[end - 1] == 0 {
+            end -= 1;
+        }
         Some(plaintext[..end].to_vec())
     }
 
     /// Encrypts Tunnel-Password according to RFC 2868
     pub fn encrypt_tunnel_password(&self, plaintext: &[u8]) -> Option<Vec<u8>> {
-        if self.secret.is_empty() { return None; }
+        if self.secret.is_empty() {
+            return None;
+        }
 
         let mut salt = [0u8; 2];
         rand::rng().fill_bytes(&mut salt);
@@ -343,7 +356,9 @@ impl Packet {
 
         let mut data = vec![plaintext.len() as u8];
         data.extend_from_slice(plaintext);
-        while data.len() % 16 != 0 { data.push(0); }
+        while data.len() % 16 != 0 {
+            data.push(0);
+        }
 
         let mut result = salt.to_vec();
         let mut last_round = Vec::with_capacity(16 + 2);
@@ -357,7 +372,9 @@ impl Packet {
             let b = hasher.finalize();
 
             let mut encrypted_chunk = [0u8; 16];
-            for i in 0..16 { encrypted_chunk[i] = chunk[i] ^ b[i]; }
+            for i in 0..16 {
+                encrypted_chunk[i] = chunk[i] ^ b[i];
+            }
             result.extend_from_slice(&encrypted_chunk);
             last_round = encrypted_chunk.to_vec();
         }
@@ -369,11 +386,11 @@ impl Packet {
         if encrypted.len() < 18 || (encrypted.len() - 2) % 16 != 0 || self.secret.is_empty() {
             return None;
         }
-        
+
         let salt = &encrypted[0..2];
         let ciphertext = &encrypted[2..];
         let mut plaintext = Vec::with_capacity(ciphertext.len());
-        
+
         let mut last_round = Vec::with_capacity(16 + 2);
         last_round.extend_from_slice(&self.authenticator);
         last_round.extend_from_slice(salt);
@@ -383,61 +400,68 @@ impl Packet {
             hasher.update(&self.secret);
             hasher.update(&last_round);
             let b = hasher.finalize();
-            for i in 0..16 { plaintext.push(chunk[i] ^ b[i]); }
+            for i in 0..16 {
+                plaintext.push(chunk[i] ^ b[i]);
+            }
             last_round = chunk.to_vec();
         }
 
         let len = plaintext[0] as usize;
-        if len > plaintext.len() - 1 { return None; }
+        if len > plaintext.len() - 1 {
+            return None;
+        }
         Some(plaintext[1..1 + len].to_vec())
     }
 
-  
     pub fn get_attribute_as<T: FromRadiusAttribute>(&self, type_code: u8) -> Option<T> {
         match type_code {
-            2 => { // User-Password
+            2 => {
+                // User-Password
                 let raw = self.get_attribute(2)?;
                 let decrypted = self.decrypt_user_password(raw)?;
                 T::from_bytes(&decrypted)
-            },
-            69 => { // Tunnel-Password
+            }
+            69 => {
+                // Tunnel-Password
                 let raw = self.get_attribute(69)?;
                 let decrypted = self.decrypt_tunnel_password(raw)?;
                 T::from_bytes(&decrypted)
-            },
-            _ => self.get_attribute(type_code).and_then(|raw| T::from_bytes(raw))
+            }
+            _ => self
+                .get_attribute(type_code)
+                .and_then(|raw| T::from_bytes(raw)),
         }
     }
 
     pub fn set_attribute_as<T: ToRadiusAttribute>(&mut self, type_code: u8, value: T) {
         match type_code {
-            2 => { 
+            2 => {
                 if let Some(encrypted) = self.encrypt_user_password(&value.to_bytes()) {
                     self.set_attribute(2, encrypted);
                 }
-            },
+            }
             69 => {
                 if let Some(encrypted) = self.encrypt_tunnel_password(&value.to_bytes()) {
                     self.set_attribute(69, encrypted);
                 }
-            },
+            }
             _ => self.set_attribute(type_code, value.to_bytes()),
         }
     }
 
     pub fn get_vsa_attribute_as<T: FromRadiusAttribute>(&self, v_id: u32, v_type: u8) -> Option<T> {
-        self.get_vsa_attribute(v_id, v_type).and_then(|raw| T::from_bytes(raw))
+        self.get_vsa_attribute(v_id, v_type)
+            .and_then(|raw| T::from_bytes(raw))
     }
 
     pub fn set_vsa_attribute_as<T: ToRadiusAttribute>(&mut self, v_id: u32, v_type: u8, value: T) {
         self.set_vsa_attribute(v_id, v_type, value.to_bytes());
     }
 
-
- pub fn create_response(&self, code: Code) -> Packet {
+    pub fn create_response(&self, code: Code) -> Packet {
         Packet {
             code,
-            identifier: self.identifier, 
+            identifier: self.identifier,
             authenticator: self.authenticator,
             attributes: Attributes::new(),
             secret: self.secret.clone(),
@@ -455,27 +479,27 @@ impl From<AttributeParseError> for PacketParseError {
 mod tests {
     use super::*;
 
-   #[test]
+    #[test]
     fn test_packet_new_with_various_types() {
         // Works with string literals
         let _p1 = Packet::new(Code::AccessRequest, "mysecret");
-        
+
         // Works with byte slices
         let _p2 = Packet::new(Code::AccessRequest, b"mysecret" as &[u8]);
-        
+
         // Works with owned Vectors (move, no allocation)
         let secret_vec = vec![1, 2, 3, 4];
         let _p3 = Packet::new(Code::AccessRequest, secret_vec);
     }
 
-      #[test]
+    #[test]
     fn parse_valid_packet() {
         let secret = b"shared-secret";
 
         // Minimal valid RADIUS packet (20 bytes, no attributes)
         let mut buf = vec![0u8; 20];
         buf[0] = Code::AccessRequest as u8; // Code
-        buf[1] = 42;                        // Identifier
+        buf[1] = 42; // Identifier
         buf[2..4].copy_from_slice(&(20u16.to_be_bytes())); // Length
 
         // Authenticator (16 bytes)
@@ -501,26 +525,26 @@ mod tests {
 
         assert_eq!(err, PacketParseError::TooShortHeader);
     }
-      #[test]
+    #[test]
     fn test_encode_access_request_preserves_authenticator() {
         let mut packet = Packet::new(Code::AccessRequest, "secret");
         let auth = [1u8; 16];
         packet.authenticator = auth;
-        
+
         let encoded = packet.encode().unwrap();
         assert_eq!(&encoded[4..20], &auth);
     }
-      #[test]
+    #[test]
     fn test_verify_request_accounting_valid() {
         let secret = b"super-secret";
         let mut packet = Packet::new(Code::AccountingRequest, secret.to_vec());
-        
+
         // encode() calculates the valid accounting authenticator
         let encoded_bytes = packet.encode().unwrap();
-        
+
         // Parse it back to simulate receiving it
         let received = Packet::parse_packet(&encoded_bytes, secret).unwrap();
-        
+
         assert!(received.verify_request(secret));
     }
 
@@ -529,10 +553,10 @@ mod tests {
         let secret = b"real-secret";
         let wrong_secret = b"hacker-secret";
         let mut packet = Packet::new(Code::AccountingRequest, secret.to_vec());
-        
+
         let encoded_bytes = packet.encode().unwrap();
         let received = Packet::parse_packet(&encoded_bytes, secret).unwrap();
-        
+
         assert!(!received.verify_request(wrong_secret));
     }
 
@@ -541,10 +565,10 @@ mod tests {
         let secret = b"secret";
         let mut packet = Packet::new(Code::AccountingRequest, secret);
         let mut encoded_bytes = packet.encode().unwrap();
-        
+
         // Tamper with the identifier after encoding
-        encoded_bytes[1] ^= 0xFF; 
-        
+        encoded_bytes[1] ^= 0xFF;
+
         let received = Packet::parse_packet(&encoded_bytes, secret).unwrap();
         assert!(!received.verify_request(secret));
     }
@@ -558,15 +582,19 @@ mod tests {
         assert!(packet.verify_request(secret));
     }
 
-     #[test]
+    #[test]
     fn test_user_password_roundtrip() {
         let secret = b"shared-secret";
         let mut packet = Packet::new(Code::AccessRequest, secret);
         packet.authenticator = [0x42; 16];
 
         let original = b"very-secure-password-123";
-        let encrypted = packet.encrypt_user_password(original).expect("Encryption failed");
-        let decrypted = packet.decrypt_user_password(&encrypted).expect("Decryption failed");
+        let encrypted = packet
+            .encrypt_user_password(original)
+            .expect("Encryption failed");
+        let decrypted = packet
+            .decrypt_user_password(&encrypted)
+            .expect("Decryption failed");
 
         assert_eq!(original.to_vec(), decrypted);
     }
@@ -578,8 +606,12 @@ mod tests {
         packet.authenticator = [0x77; 16];
 
         let original = b"tunnel-secret-password";
-        let encrypted = packet.encrypt_tunnel_password(original).expect("Tunnel encryption failed");
-        let decrypted = packet.decrypt_tunnel_password(&encrypted).expect("Tunnel decryption failed");
+        let encrypted = packet
+            .encrypt_tunnel_password(original)
+            .expect("Tunnel encryption failed");
+        let decrypted = packet
+            .decrypt_tunnel_password(&encrypted)
+            .expect("Tunnel decryption failed");
 
         assert_eq!(original.to_vec(), decrypted);
         // Verify salt is present (first 2 bytes) and length is correct
@@ -587,7 +619,7 @@ mod tests {
         assert!(encrypted[0] >= 0x80, "Salt MSB must be set");
     }
 
-      #[test]
+    #[test]
     fn test_encrypt_user_password_blocks() {
         let secret = b"mysecret";
         let mut packet = Packet::new(Code::AccessRequest, secret);
@@ -608,10 +640,8 @@ mod tests {
         hasher.update(secret);
         hasher.update(&packet.authenticator);
         let b1 = hasher.finalize();
-        
+
         let decrypted_p1 = enc1[0] ^ b1[0];
         assert_eq!(decrypted_p1, b'p');
     }
-
- 
 }

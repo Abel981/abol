@@ -2,20 +2,29 @@ use abol_parser::dictionary::{AttributeType, Dictionary, DictionaryAttribute, Di
 use heck::{ToPascalCase, ToShoutySnakeCase, ToSnakeCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use std::process::{Command, Stdio};
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
+use std::process::{Command, Stdio};
 pub mod rfc2865;
 
-
+/// A code generator that transforms RADIUS dictionary definitions into type-safe Rust traits.
+///
+/// This generator produces a trait (e.g., `Rfc2865Ext`) that extends the base `Packet` struct
+/// with getter and setter methods for every attribute defined in the dictionary.
 pub struct Generator {
+    /// The name of the module/trait to be generated (e.g., "rfc2865").
     pub module_name: String,
+    /// Attributes that should be skipped during generation.
     pub ignored_attributes: Vec<String>,
-    /// Maps attribute names to the crate/module path for external definitions
+    /// Maps attribute names to external crate/module paths if they are defined elsewhere.
     pub external_attributes: HashMap<String, String>,
 }
 
 impl Generator {
+    /// Creates a new generator instance for the specified module name.
+    ///
+    /// # Arguments
+    /// * `module_name` - The base name for the generated trait (will be converted to PascalCase).
     pub fn new(module_name: &str) -> Self {
         Self {
             module_name: module_name.to_string(),
@@ -23,7 +32,10 @@ impl Generator {
             external_attributes: HashMap::new(),
         }
     }
-    /// Strict validation based on RADIUS protocol and generator.go logic
+    /// Validates an attribute against RADIUS protocol constraints and generator logic.
+    ///
+    /// This ensures that attributes follow standard OID limits, size constraints,
+    /// and encryption requirements.
     fn validate_attr(&self, attr: &DictionaryAttribute) -> Result<(), String> {
         // OID Check: Standard attributes must fit in 1 byte
         if attr.oid.vendor.is_none() && attr.oid.code > 255 {
@@ -71,7 +83,7 @@ impl Generator {
 
         Ok(())
     }
-     fn format_code(&self, content: &str) -> String {
+    fn format_code(&self, content: &str) -> String {
         let mut child = Command::new("rustfmt")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -92,7 +104,11 @@ impl Generator {
 
         child.unwrap_or_else(|| content.to_string())
     }
-
+    /// Generates the Rust source code for the given dictionary.
+    ///
+    /// # Errors
+    /// Returns an error if the generation process fails or if there are severe inconsistencies
+    /// in the dictionary structure.
     pub fn generate(&self, dict: &Dictionary) -> Result<String, Box<dyn std::error::Error>> {
         let mut tokens = TokenStream::new();
         let mut trait_signatures = TokenStream::new();
@@ -166,12 +182,12 @@ impl Generator {
                 #trait_impl_bodies
             }
         });
-         let raw_code = tokens.to_string();
+        let raw_code = tokens.to_string();
 
         Ok(self.format_code(&raw_code))
     }
-
-     fn process_attribute(
+    /// Internal helper to process a single attribute and generate its types, constants, and methods.
+    fn process_attribute(
         &self,
         attr: &DictionaryAttribute,
         ignored: &HashSet<&String>,
@@ -180,27 +196,32 @@ impl Generator {
         signatures: &mut TokenStream,
         bodies: &mut TokenStream,
     ) {
-        if ignored.contains(&attr.name) { return; }
+        if ignored.contains(&attr.name) {
+            return;
+        }
         if let Err(e) = self.validate_attr(attr) {
             eprintln!("Skipping {}: {}", attr.name, e);
             return;
         }
 
         // 1. Map Dictionary Type to Rust Type early so it's available for quotes
-          let (get_type, set_type) = match attr.attr_type {
-           AttributeType::String => (quote! { String }, quote! { impl Into<String> }),
+        let (get_type, set_type) = match attr.attr_type {
+            AttributeType::String => (quote! { String }, quote! { impl Into<String> }),
             AttributeType::Integer => (quote! { u32 }, quote! { u32 }),
             AttributeType::IpAddr => (quote! { Ipv4Addr }, quote! { Ipv4Addr }),
             AttributeType::Ipv6Addr => (quote! { Ipv6Addr }, quote! { Ipv6Addr }),
-            AttributeType::Octets | AttributeType::Ether | AttributeType::ABinary | AttributeType::Vsa => {
-                (quote! { Vec<u8> }, quote! { impl Into<Vec<u8>> })
-            },
+            AttributeType::Octets
+            | AttributeType::Ether
+            | AttributeType::ABinary
+            | AttributeType::Vsa => (quote! { Vec<u8> }, quote! { impl Into<Vec<u8>> }),
             AttributeType::Date => (quote! { SystemTime }, quote! { SystemTime }),
             AttributeType::Byte => (quote! { u8 }, quote! { u8 }),
             AttributeType::Short => (quote! { u16 }, quote! { u16 }),
             AttributeType::Signed => (quote! { i32 }, quote! { i32 }),
             AttributeType::Tlv => (quote! { Tlv }, quote! { Tlv }),
-            AttributeType::Ipv4Prefix | AttributeType::Ipv6Prefix => (quote! { Vec<u8> }, quote! { Vec<u8> }),
+            AttributeType::Ipv4Prefix | AttributeType::Ipv6Prefix => {
+                (quote! { Vec<u8> }, quote! { Vec<u8> })
+            }
             AttributeType::Ifid | AttributeType::InterfaceId => (quote! { u64 }, quote! { u64 }),
             _ => return, // Skip Unknown types
         };
@@ -235,16 +256,16 @@ impl Generator {
         });
 
         // 3. Generate Bodies using trait helpers
-          let (final_get, final_set) = if let Some(vid) = attr.oid.vendor {
+        let (final_get, final_set) = if let Some(vid) = attr.oid.vendor {
             let v_const = format_ident!("VENDOR_{}", vid);
             (
                 quote! { self.get_vsa_attribute_as::<#get_type>(#v_const, #const_ident) },
-                quote! { self.set_vsa_attribute_as::<#get_type>(#v_const, #const_ident, value.into()) }
+                quote! { self.set_vsa_attribute_as::<#get_type>(#v_const, #const_ident, value.into()) },
             )
         } else {
             (
                 quote! { self.get_attribute_as::<#get_type>(#const_ident) },
-                quote! { self.set_attribute_as::<#get_type>(#const_ident, value.into()) }
+                quote! { self.set_attribute_as::<#get_type>(#const_ident, value.into()) },
             )
         };
 
@@ -252,5 +273,130 @@ impl Generator {
             fn #get_ident(&self) -> Option<#get_type> { #final_get }
             fn #set_ident(&mut self, value: #set_type) { #final_set }
         });
+    }
+}
+#[cfg(test)]
+mod tests {
+    use abol_parser::dictionary;
+
+    use super::*;
+
+    #[test]
+    fn test_generator_new() {
+        let generator = Generator::new("rfc2865");
+        assert_eq!(generator.module_name, "rfc2865");
+        assert!(generator.ignored_attributes.is_empty());
+    }
+
+    #[test]
+    fn test_validate_attr_oid_overflow() {
+        let generator = Generator::new("test");
+        let attr = DictionaryAttribute {
+            name: "Test-Attr".to_string(),
+            oid: dictionary::Oid {
+                vendor: None,
+                code: 256,
+            },
+            attr_type: AttributeType::String,
+            size: dictionary::SizeFlag::Any,
+            encrypt: None,
+            has_tag: None,
+            concat: None,
+        };
+        // Standard RADIUS OID is 1 byte (0-255)
+
+        assert!(generator.validate_attr(&attr).is_err());
+    }
+
+    #[test]
+    fn test_validate_attr_size_constraint_type() {
+        let generator = Generator::new("test");
+        let mut attr = DictionaryAttribute {
+            name: "Test-Attr".to_string(),
+            oid: dictionary::Oid {
+                vendor: None,
+                code: 100,
+            },
+            attr_type: AttributeType::Integer,
+            size: dictionary::SizeFlag::Range(1, 10),
+            encrypt: None,
+            has_tag: None,
+            concat: None,
+        };
+
+        // Integer types cannot have size constraints in RADIUS
+        assert!(generator.validate_attr(&attr).is_err());
+
+        attr.attr_type = AttributeType::String;
+        assert!(generator.validate_attr(&attr).is_ok());
+    }
+
+    #[test]
+    fn test_process_attribute_generation() {
+        let generator = Generator::new("Rfc2865");
+        let mut tokens = TokenStream::new();
+        let mut signatures = TokenStream::new();
+        let mut bodies = TokenStream::new();
+
+        let attr = DictionaryAttribute {
+            name: "User-Name".to_string(),
+            oid: dictionary::Oid {
+                vendor: None,
+                code: 1,
+            },
+            attr_type: AttributeType::String,
+            size: dictionary::SizeFlag::Any,
+            encrypt: None,
+            has_tag: None,
+            concat: None,
+        };
+
+        generator.process_attribute(
+            &attr,
+            &HashSet::new(),
+            &HashMap::new(),
+            &mut tokens,
+            &mut signatures,
+            &mut bodies,
+        );
+
+        let sig_str = signatures.to_string();
+        assert!(sig_str.contains("get_user_name"));
+        assert!(sig_str.contains("set_user_name"));
+    }
+
+    #[test]
+    fn test_ignored_attributes() {
+        let mut generator = Generator::new("test");
+        generator.ignored_attributes.push("Password".to_string());
+
+        let ignored: HashSet<_> = generator.ignored_attributes.iter().collect();
+        let mut tokens = TokenStream::new();
+        let mut signatures = TokenStream::new();
+        let mut bodies = TokenStream::new();
+
+        let attr = DictionaryAttribute {
+            name: "Password".to_string(),
+            oid: dictionary::Oid {
+                vendor: None,
+                code: 2,
+            },
+            attr_type: AttributeType::String,
+            size: dictionary::SizeFlag::Any,
+            encrypt: None,
+            has_tag: None,
+            concat: None,
+        };
+
+        generator.process_attribute(
+            &attr,
+            &ignored,
+            &HashMap::new(),
+            &mut tokens,
+            &mut signatures,
+            &mut bodies,
+        );
+
+        assert!(signatures.is_empty());
     }
 }

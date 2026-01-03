@@ -24,12 +24,14 @@ pub struct FileOpener {
 }
 
 impl FileOpener {
-   pub fn new(root: impl Into<PathBuf>) -> Self {
+    pub fn new(root: impl Into<PathBuf>) -> Self {
         let root_path = root.into();
         // Canonicalize the root immediately to turn relative paths (like ../)
         // into absolute system paths for reliable security checks.
         let canonical_root = root_path.canonicalize().unwrap_or(root_path);
-        Self { root: canonical_root }
+        Self {
+            root: canonical_root,
+        }
     }
 
     pub fn get_root(&self) -> &Path {
@@ -54,7 +56,7 @@ impl FileOpener {
         );
         let file =
             File::open(&abs_path).with_context(|| format!("failed to open file {:?}", abs_path))?;
-            println!("Opened file {:?}", abs_path);
+        println!("Opened file {:?}", abs_path);
         Ok(file)
     }
 }
@@ -84,10 +86,10 @@ impl Parser {
         let mut parsed = HashSet::new();
         let p = file_path.as_ref();
         let full_path = if p.is_absolute() {
-        p.to_path_buf()
-    } else {
-        self.file_opener.get_root().join(p) // Access the absolute root from FileOpener
-    };
+            p.to_path_buf()
+        } else {
+            self.file_opener.get_root().join(p) // Access the absolute root from FileOpener
+        };
         // let canonical = Self::canonical_path(&file_path)?;
         parsed.insert(full_path);
         self.parse(&mut dict, &mut parsed, file)?;
@@ -387,5 +389,3 @@ fn vendor_by_name_or_number<'a>(
 ) -> Option<&'a DictionaryVendor> {
     vendors.iter().find(|v| v.name == name || v.code == code)
 }
-
-
