@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-trait Timer {
+pub trait Timer {
     fn sleep(&self, duration: Duration) -> Pin<Box<Sleep>>;
     fn sleep_until(&self, deadline: Instant) -> Pin<Box<Sleep>>;
     fn reset(&self, sleep: &mut Pin<Box<Sleep>>, updated_deadline: Instant) {
@@ -22,5 +22,18 @@ impl Timer for TokioTimer {
     }
     fn sleep_until(&self, deadline: Instant) -> Pin<Box<Sleep>> {
         Box::pin(tokio::time::sleep_until(Instant::into(deadline)))
+    }
+}
+
+#[cfg(feature = "smol")]
+pub struct SmolTimer;
+
+#[cfg(feature = "smol")]
+impl Timer for SmolTimer {
+    fn sleep(&self, duration: Duration) -> Pin<Box<Sleep>> {
+        Box::pin(smol::Timer::after(duration))
+    }
+    fn sleep_until(&self, deadline: Instant) -> Pin<Box<Sleep>> {
+        Box::pin(smol::Timer::at(deadline))
     }
 }

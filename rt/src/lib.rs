@@ -1,8 +1,39 @@
-use std::pin::Pin;
-
+use core::future::Future;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 mod io;
 pub mod net;
-mod timer;
+pub mod timer;
+
+pub struct YieldNow {
+    yielded: bool,
+}
+
+impl YieldNow {
+    pub fn new() -> Self {
+        Self { yielded: false }
+    }
+}
+impl Default for YieldNow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Future for YieldNow {
+    type Output = ();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if self.yielded {
+            Poll::Ready(())
+        } else {
+            self.yielded = true;
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        }
+    }
+}
+
+// futures::future::
 
 pub enum Executor {
     #[cfg(feature = "tokio")]
@@ -28,13 +59,13 @@ pub struct TokioExecutor;
 #[cfg(feature = "smol")]
 pub struct SmolExecutor;
 
-// pub fn get_executor() -> Box<dyn Executor> {
-//     #[cfg(feature = "tokio")]
-//     {
-//         Box::new(TokioExecutor)
-//     }
-//     #[cfg(feature = "smol")]
-//     {
-//         Box::new(SmolExecutor)
-//     }
-// }
+pub fn get_executor() -> Executor {
+    #[cfg(feature = "tokio")]
+    {
+        Executor::TokioExecutor
+    }
+    #[cfg(feature = "smol")]
+    {
+        Executor::SmolExecutor
+    }
+}

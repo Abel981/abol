@@ -1,9 +1,10 @@
 use abol_codegen::rfc2865::Rfc2865Ext;
-use abol_core::{Code, HandlerResult, Request, Response, packet::Packet};
-use server::{HandlerFn, Server};
+use abol_core::{Code, Request, Response};
+use server::{HandlerFn, Server, StaticSecret};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let secret = StaticSecret::new(b"testing123".to_vec());
     let handler = HandlerFn(|request: Request| async move {
         println!(
             "Received Request Code: {} from {}",
@@ -50,12 +51,17 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     });
-    let secret = server::StaticSecret(b"testing123".to_vec());
     // Start server on all interfaces, port 1812, secret "testing123"
     let server = Server::new("0.0.0.0:1812", secret, handler);
 
     // We pass a simple never-ending future for the shutdown signal for testing
-    server.listen_and_serve().await?;
+    server
+        .with_graceful_shutdown(async {
+            tokio::signal::ctrl_c().await.ok();
+            println!("Shutdown signal received, starting cleanup...");
+        })
+        .listen_and_serve()
+        .await?;
 
     Ok(())
 }
