@@ -1,41 +1,117 @@
+use abol_core::packet::{MAX_PACKET_SIZE, Packet};
+use abol_core::{HandlerResult, Request, Response};
 use anyhow::{Context, anyhow};
 use async_trait::async_trait;
+use moka::future::Cache;
+use rt::net::UdpSocket;
+use rt::{Executor, YieldNow};
 use std::collections::HashSet;
 use std::future::Future;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::task::Poll;
 
-use abol_core::packet::{MAX_PACKET_SIZE, Packet};
-use abol_core::{HandlerResult, Request, Response};
-use rt::net::UdpSocket;
-use rt::{Executor, YieldNow};
-
 type ShutdownFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
+
+pub struct Cidr {
+    pub ip: IpAddr,
+    pub prefix: u8,
+}
+
+impl Cidr {
+    /// Checks if a given IP address falls within this CIDR range
+    pub fn contains(&self, other: &IpAddr) -> bool {
+        match (self.ip, other) {
+            (IpAddr::V4(net), IpAddr::V4(ip)) => {
+                let mask = u32::MAX.checked_shl(32 - self.prefix as u32).unwrap_or(0);
+                u32::from(net) & mask == u32::from(*ip) & mask
+            }
+            (IpAddr::V6(net), IpAddr::V6(ip)) => {
+                let mask = u128::MAX.checked_shl(128 - self.prefix as u32).unwrap_or(0);
+                u128::from(net) & mask == u128::from(*ip) & mask
+            }
+            _ => false,
+        }
+    }
+}
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 struct RequestKey {
     addr: SocketAddr,
     identifier: u8,
 }
-
+#[async_trait]
 pub trait SecretProvider: Send + Sync + 'static {
-    fn get_secret(&self, addr: SocketAddr) -> Option<Vec<u8>>;
+    async fn get_secret(&self, client_ip: IpAddr) -> Option<Arc<[u8]>>;
 }
 
-pub struct StaticSecret(Vec<u8>);
-impl SecretProvider for StaticSecret {
-    fn get_secret(&self, _addr: std::net::SocketAddr) -> Option<Vec<u8>> {
-        Some(self.0.clone())
+#[async_trait]
+impl SecretProvider for SecretManager {
+    async fn get_secret(&self, client_ip: IpAddr) -> Option<Arc<[u8]>> {
+        self.get_secret(client_ip).await
     }
 }
-impl StaticSecret {
-    pub fn new(secret: Vec<u8>) -> Self {
-        StaticSecret(secret)
+
+#[async_trait]
+pub trait SecretSource: Send + Sync + 'static {
+    // Returns a map of CIDR -> Secret.
+    // Fetching the whole list is often more efficient for RADIUS than one-by-one.
+    async fn get_all_secrets(
+        &self,
+    ) -> Result<Vec<(Cidr, Vec<u8>)>, Box<dyn std::error::Error + Send + Sync>>;
+}
+
+pub struct SecretManager {
+    cache: Cache<(), Arc<Vec<(Cidr, Arc<[u8]>)>>>,
+    source: Arc<dyn SecretSource>,
+}
+
+impl SecretManager {
+    pub fn new(source: Arc<dyn SecretSource>, cache_ttl_secs: u64) -> Self {
+        let cache = Cache::builder()
+            .max_capacity(1)
+            .time_to_live(std::time::Duration::from_secs(cache_ttl_secs))
+            .build();
+        Self { cache, source }
+    }
+
+    pub async fn get_secret(&self, client_ip: IpAddr) -> Option<Arc<[u8]>> {
+        let table = self
+            .cache
+            .get_with((), async { self.reload().await.unwrap_or_default() })
+            .await;
+
+        table
+            .iter()
+            .find(|(cidr, _)| cidr.contains(&client_ip))
+            .map(|(_, secret)| Arc::from(secret.clone()))
+    }
+
+    async fn reload(
+        &self,
+    ) -> Result<Arc<Vec<(Cidr, Arc<[u8]>)>>, Box<dyn std::error::Error + Send + Sync>> {
+        let entries = self.source.get_all_secrets().await?;
+        let arc_entries = entries
+            .into_iter()
+            .map(|(cidr, secret)| (cidr, Arc::from(secret)))
+            .collect();
+        Ok(Arc::new(arc_entries))
     }
 }
+
+// pub struct StaticSecret(Vec<u8>);
+// impl SecretProvider for StaticSecret {
+//     fn get_secret(&self, _addr: std::net::SocketAddr) -> Option<Arc<[u8]>> {
+//         Some(Arc::from(self.0.clone()))
+//     }
+// }
+// impl StaticSecret {
+//     pub fn new(secret: Vec<u8>) -> Self {
+//         StaticSecret(secret)
+//     }
+// }
 
 #[async_trait]
 pub trait Handler: Send + Sync + 'static {
@@ -55,12 +131,15 @@ where
     }
 }
 
-/// Shared runtime state
-struct ServerContext<S, H> {
-    secret_provider: S,
-    handler: H,
-    undergoing_requests: RwLock<HashSet<RequestKey>>,
-    active_tasks: AtomicUsize,
+pub struct ServerContext<S, H>
+where
+    S: SecretProvider,
+    H: Handler,
+{
+    pub secret_provider: Arc<S>,
+    pub handler: Arc<H>,
+    pub undergoing_requests: Arc<RwLock<HashSet<RequestKey>>>,
+    pub active_tasks: Arc<AtomicUsize>,
 }
 
 pub struct Server<S, H>
@@ -69,8 +148,10 @@ where
     H: Handler,
 {
     addr: String,
-    secret_provider: S,
-    handler: H,
+    secret_provider: Arc<S>,
+    handler: Arc<H>,
+    undergoing_requests: Arc<RwLock<HashSet<RequestKey>>>,
+    active_tasks: Arc<AtomicUsize>,
     shutdown_signal: Option<ShutdownFuture>,
 }
 
@@ -82,8 +163,10 @@ where
     pub fn new(addr: impl Into<String>, secret_provider: S, handler: H) -> Self {
         Self {
             addr: addr.into(),
-            secret_provider,
-            handler,
+            secret_provider: Arc::new(secret_provider),
+            handler: Arc::new(handler),
+            undergoing_requests: Arc::new(RwLock::new(HashSet::new())),
+            active_tasks: Arc::new(AtomicUsize::new(0)),
             shutdown_signal: None,
         }
     }
@@ -108,8 +191,8 @@ where
         let context = Arc::new(ServerContext {
             secret_provider: self.secret_provider,
             handler: self.handler,
-            undergoing_requests: RwLock::new(HashSet::new()),
-            active_tasks: AtomicUsize::new(0),
+            undergoing_requests: self.undergoing_requests,
+            active_tasks: self.active_tasks,
         });
 
         let mut shutdown = self
@@ -164,12 +247,12 @@ where
                 // TaskGuard now takes the whole context Arc to manage the count
                 let _guard = TaskGuard::new(Arc::clone(&ctx));
 
-                let secret = match ctx.secret_provider.get_secret(peer_addr) {
+                let secret = match ctx.secret_provider.get_secret(peer_addr.ip()).await {
                     Some(s) => s,
                     None => return,
                 };
 
-                let packet = match Packet::parse_packet(&data, &secret) {
+                let packet = match Packet::parse_packet(&data, Arc::clone(&secret)) {
                     Ok(p) => p,
                     Err(e) => {
                         eprintln!("Failed to parse packet from {}: {:?}", peer_addr, e);
@@ -189,7 +272,7 @@ where
                     }
                 }
 
-                if let Err(e) = Self::process(&ctx, packet, secret, l_addr, peer_addr, sock).await {
+                if let Err(e) = Self::process(&ctx, packet, l_addr, peer_addr, sock).await {
                     eprintln!("Error processing request from {}: {:?}", peer_addr, e);
                 }
 
@@ -203,12 +286,12 @@ where
     async fn process(
         ctx: &ServerContext<S, H>,
         packet: Packet,
-        secret: Vec<u8>,
+
         local_addr: String,
         peer_addr: SocketAddr,
         socket: Arc<UdpSocket>,
     ) -> anyhow::Result<()> {
-        if !packet.verify_request(&secret) {
+        if !packet.verify_request() {
             return Err(anyhow!("Invalid authenticator from {}", peer_addr));
         }
 

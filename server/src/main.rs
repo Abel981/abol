@@ -1,10 +1,33 @@
+use std::sync::Arc;
+
 use abol_codegen::rfc2865::Rfc2865Ext;
 use abol_core::{Code, Request, Response};
-use server::{HandlerFn, Server, StaticSecret};
+use async_trait::async_trait;
+use server::{Cidr, HandlerFn, SecretManager, SecretSource, Server};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let secret = StaticSecret::new(b"testing123".to_vec());
+    pub struct StaticSecretSource {
+        pub secret: Vec<u8>,
+    }
+    #[async_trait]
+    impl SecretSource for StaticSecretSource {
+        async fn get_all_secrets(
+            &self,
+        ) -> Result<Vec<(Cidr, Vec<u8>)>, Box<dyn std::error::Error + Send + Sync>> {
+            Ok(vec![(
+                Cidr {
+                    ip: "0.0.0.0".parse()?,
+                    prefix: 0,
+                },
+                self.secret.clone(),
+            )])
+        }
+    }
+    let source = Arc::new(StaticSecretSource {
+        secret: b"testing123".to_vec(),
+    });
+    let secret_manager = SecretManager::new(source, 3600);
     let handler = HandlerFn(|request: Request| async move {
         println!(
             "Received Request Code: {} from {}",
@@ -52,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
     // Start server on all interfaces, port 1812, secret "testing123"
-    let server = Server::new("0.0.0.0:1812", secret, handler);
+    let server = Server::new("0.0.0.0:1812", secret_manager, handler);
 
     // We pass a simple never-ending future for the shutdown signal for testing
     server
