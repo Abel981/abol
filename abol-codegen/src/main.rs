@@ -14,7 +14,7 @@ struct Args {
     #[arg(short, long)]
     output: PathBuf,
 
-    /// Module name for the generated code
+    /// Trait name for the generated code
     #[arg(short, long, default_value = "radius_core")]
     name: String,
 
@@ -38,36 +38,30 @@ fn main() -> Result<()> {
             .file_name()
             .context(format!("Could not determine filename of {:?}", input_path))?;
 
-        // Create a parser for this specific file's context
         let file_opener = FileOpener::new(root);
         let parser = abol_parser::Parser::new(file_opener, args.ignore_identical_attributes);
 
         println!("Parsing {:?}...", input_path);
 
-        // 2. Parse the individual file
         let next_dict = parser
             .parse_dictionary(file_name)
             .with_context(|| format!("Failed to parse dictionary file {:?}", input_path))?;
 
-        // 3. Merge into the accumulator (this runs our validation logic)
         final_dict = Dictionary::merge(&final_dict, &next_dict)
             .map_err(|e| anyhow::anyhow!("Merge conflict in {:?}: {}", input_path, e))?;
     }
 
-    // 4. Generate the code from the consolidated dictionary
     let generator = Generator::new(&args.name);
     let code = generator
         .generate(&final_dict)
         .map_err(|e| anyhow::anyhow!("Code generation failed: {}", e))?;
 
-    // 5. Determine output path
     let mut final_output_path = args.output;
     if final_output_path.is_dir() {
         let final_name = format!("{}.rs", args.name.to_lowercase());
         final_output_path.push(final_name);
     }
 
-    // 6. Ensure directory exists and write
     if let Some(parent) = final_output_path.parent() {
         fs::create_dir_all(parent).with_context(|| {
             format!(
