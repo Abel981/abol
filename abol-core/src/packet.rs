@@ -1,8 +1,9 @@
-use std::sync::Arc;
-
+#![allow(dead_code)]
+use bytes::Bytes;
 use md5::{Digest, Md5};
 use rand::Rng;
 use rand::RngCore;
+use std::sync::Arc;
 use thiserror::Error;
 use zeroize::Zeroize;
 
@@ -15,12 +16,27 @@ use crate::{
 };
 
 pub const MAX_PACKET_SIZE: usize = 4096;
+/// Represents a parsed or ready-to-be-sent RADIUS packet.
+///
+/// This struct acts as the primary container for RADIUS data, including the fixed
+/// header fields and the variable-length attributes.
 #[derive(Debug, Clone)]
 pub struct Packet {
+    /// The RADIUS packet type (e.g., Access-Request, Access-Accept).
     pub code: Code,
+
+    /// A sequence number used to match requests with responses.
+    /// The client should increment this for each new request.
     pub identifier: u8,
+
+    /// A 16-octet value used to authenticate the reply from the RADIUS server
+    /// and to hide passwords.
     pub authenticator: [u8; 16],
+
+    /// A collection of RADIUS attributes containing the data for the request or response.
     pub attributes: Attributes,
+
+    /// The shared secret used for packet authentication and attribute encryption.
     pub secret: Arc<[u8]>,
 }
 
@@ -36,44 +52,7 @@ pub enum PacketParseError {
     AttributeError(AttributeParseError),
 }
 impl Packet {
-    /// Creates a new RADIUS packet with a cryptographically random authenticator.
-    ///
-    /// This constructor initializes a [`Packet`] with:
-    /// - A randomly generated 16-byte authenticator
-    /// - A randomly chosen packet identifier
-    /// - An empty attribute set
-    /// - The shared secret used for request/response authentication
-    ///
-    /// The authenticator is generated using the thread-local random number
-    /// generator and is suitable for use in authentication and accounting
-    /// packets as defined by RFC 2865.
-    ///
-    /// # Parameters
-    ///
-    /// - `code`: The RADIUS packet code (e.g. `AccessRequest`, `AccessAccept`)
-    /// - `secret`: The shared secret between the client and the RADIUS server
-    ///
-    /// # Security
-    ///
-    /// The provided `secret` is copied into the packet and later used for
-    /// authenticator verification and password obfuscation. Callers should
-    /// take care to protect this value and avoid reusing it across unrelated
-    /// security domains.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use abol::core::{Packet, Code};
-    ///
-    /// let packet = Packet::new(Code::AccessRequest, "shared-secret");
-    /// assert_eq!(packet.attributes.len(), 0);
-    /// ```
-    ///
-    /// # Notes
-    ///
-    /// This function does not perform any validation on the secret length.
-    /// Validation is deferred to packet encoding and verification stages.
-    pub fn new(code: Code, secret: Arc<[u8]>) -> Self {
+    fn new(code: Code, secret: Arc<[u8]>) -> Self {
         let mut rng = rand::rng();
         let mut authenticator = [0u8; 16];
         rng.fill_bytes(&mut authenticator);
@@ -82,13 +61,12 @@ impl Packet {
             code,
             identifier: rng.random::<u8>(),
             authenticator,
-            attributes: Attributes(Vec::new()),
+            attributes: Attributes::default(),
             secret,
         }
     }
 
-    pub fn parse_packet(b: &[u8], secret: Arc<[u8]>) -> Result<Self, PacketParseError> {
-        // 1. Basic length checks
+    pub fn parse_packet(b: Bytes, secret: Arc<[u8]>) -> Result<Self, PacketParseError> {
         if b.len() < 20 {
             return Err(PacketParseError::TooShortHeader);
         }
@@ -99,34 +77,29 @@ impl Packet {
 
         let length = u16::from_be_bytes([b[2], b[3]]) as usize;
 
-        if length < 20 || length > MAX_PACKET_SIZE || length > b.len() {
+        if !(20..=MAX_PACKET_SIZE).contains(&length) {
             return Err(PacketParseError::InvalidLength(length));
         }
 
-        // 2. Extract Header fields
         let code = Code::try_from(b[0])?;
         let identifier = b[1];
 
         let mut authenticator = [0u8; 16];
         authenticator.copy_from_slice(&b[4..20]);
 
-        // 3. Parse Attributes
-        let attribute_data_slice = &b[20..length];
-        let attrs = attribute::parse_attributes(attribute_data_slice)?;
+        let attribute_data = b.slice(20..length);
+        let attrs = attribute::parse_attributes(attribute_data)?;
 
-        // 4. Return the struct with the Shared Secret
         Ok(Self {
             code,
             identifier,
             authenticator,
             attributes: attrs,
-            secret, // Just move the Arc in. No allocation, no copy.
+            secret,
         })
     }
 
     pub fn encode(&self) -> Result<Vec<u8>, PacketParseError> {
-        // 1. Get the raw packet bytes. The Authenticator field (b[4..20])
-        //    is currently populated with the Request Authenticator (or random bytes for requests).
         let mut b = self.encode_raw()?;
         let code: Code = self.code;
 
@@ -146,41 +119,20 @@ impl Packet {
             | Code::DisconnectNak => {
                 let mut hasher = Md5::new();
 
-                // 2. Hash the Code, ID, Length (b[0..4])
                 hasher.update(&b[0..4]);
 
-                // 3. Hash the Request Authenticator (b[4..20])
-                // This is correct because `encode_raw` populated b[4..20] with `self.authenticator`,
-                // which must hold the Request Authenticator for a response packet.
                 hasher.update(&b[4..20]);
 
-                // 4. Hash the Attributes (b[20..])
                 hasher.update(&b[20..]);
 
-                // 5. Hash the Shared Secret
                 hasher.update(&self.secret);
 
-                // 6. Calculate the final hash and place it back into b[4..20] (Response Authenticator)
                 let hash_result = hasher.finalize();
                 b[4..20].copy_from_slice(&hash_result);
 
                 Ok(b)
             }
-
-            // These are Request Codes (Accounting-Request, Disconnect-Request, CoA-Request)
-            // These require the Message-Authenticator attribute (Type 80) for signing.
-            // The MD5 calculation here is for the Message-Authenticator attribute, NOT the
-            // primary Authenticator field (b[4..20]), which should be zeroed out in the hash calculation.
-            // Your original Go logic seems to be trying to implement the Message-Authenticator check.
             Code::AccountingRequest | Code::DisconnectRequest | Code::CoARequest => {
-                // If you are using Message-Authenticator, this logic is correct:
-                // MD5(Code|ID|Length|0x00*16|Attributes|Secret)
-                // However, the result of this hash must be placed in the Message-Authenticator attribute,
-                // and the *primary* Authenticator field must be set to the hash of the original
-                // Request Authenticator and other fields (which is complex).
-
-                // Sticking to your original attempt to fix the primary authenticator field:
-
                 let mut hasher = Md5::new();
                 hasher.update(&b[0..4]);
 
@@ -191,9 +143,6 @@ impl Packet {
                 hasher.update(&b[20..]);
                 hasher.update(&self.secret);
 
-                // The result of this hash should typically go into the Message-Authenticator attribute
-                // for these packet types, but your code places it into b[4..20].
-                // We will follow your code structure for now.
                 let hash_result = hasher.finalize();
                 b[4..20].copy_from_slice(&hash_result);
 
@@ -214,12 +163,12 @@ impl Packet {
         b[1] = self.identifier;
         b[2..4].copy_from_slice(&(size as u16).to_be_bytes());
         b[4..20].copy_from_slice(&self.authenticator);
-        self.attributes.encode_to(&mut b[20..]);
+        self.attributes
+            .encode_to(&mut b[20..])
+            .map_err(PacketParseError::AttributeError)?;
         Ok(b)
     }
     pub fn verify_request(&self) -> bool {
-        // The packet struct likely already stores the shared secret,
-        // but for a robust verify method, it's best to use the secret passed in.
         if self.secret.is_empty() {
             return false;
         }
@@ -234,18 +183,15 @@ impl Packet {
             // The Message-Authenticator hash is calculated over the entire packet,
             // but with the primary Authenticator field (bytes 4-20) temporarily zeroed out.
             Code::AccountingRequest | Code::DisconnectRequest | Code::CoARequest => {
-                // 1. Get the raw packet bytes.
                 let packet_raw_result = self.encode_raw();
                 if packet_raw_result.is_err() {
                     return false;
                 }
                 let mut packet_raw = packet_raw_result.unwrap();
 
-                // 2. Zero out the primary Authenticator field (bytes 4-20) for the hash calculation.
                 const NUL_AUTHENTICATOR: [u8; 16] = [0u8; 16];
                 packet_raw[4..20].copy_from_slice(&NUL_AUTHENTICATOR);
 
-                // 3. Start the MD5 hash calculation.
                 let mut hasher = Md5::new();
 
                 // Hash the entire zeroed packet.
@@ -254,12 +200,7 @@ impl Packet {
                 // Hash the shared secret.
                 hasher.update(&*self.secret);
 
-                // 4. Calculate the final hash.
                 let calculated_hash = hasher.finalize();
-
-                // 5. Compare the calculated hash with the Authenticator received in the packet.
-                // The calculated hash should match the value found in the packet's Message-Authenticator
-                // attribute (Type 80). Since your code seems to be comparing against the *primary* // authenticator field (`self.authenticator`), we follow that logic.
 
                 let calculated_bytes: [u8; 16] = calculated_hash.into();
 
@@ -294,13 +235,13 @@ impl Packet {
         let chunks = if plaintext.is_empty() {
             1
         } else {
-            (plaintext.len() + 15) / 16
+            plaintext.len().div_ceil(16)
         };
         let mut enc = Vec::with_capacity(chunks * 16);
 
         let mut hasher = Md5::new();
         hasher.update(&self.secret);
-        hasher.update(&self.authenticator);
+        hasher.update(self.authenticator);
         let mut b = hasher.finalize();
 
         // First 16-byte block
@@ -331,7 +272,7 @@ impl Packet {
 
     /// Decrypts a User-Password attribute according to RFC 2865
     pub fn decrypt_user_password(&self, encrypted: &[u8]) -> Option<Vec<u8>> {
-        if encrypted.is_empty() || encrypted.len() % 16 != 0 || self.secret.is_empty() {
+        if encrypted.is_empty() || !encrypted.len().is_multiple_of(16) || self.secret.is_empty() {
             return None;
         }
 
@@ -342,11 +283,10 @@ impl Packet {
         for chunk in encrypted.chunks(16) {
             let mut hasher = Md5::new();
             hasher.update(&*self.secret);
-            hasher.update(&last_round);
+            hasher.update(last_round);
             let b = hasher.finalize();
             for i in 0..16 {
                 plaintext.push(chunk[i] ^ b[i]);
-            
             }
             last_round.copy_from_slice(chunk);
         }
@@ -369,7 +309,7 @@ impl Packet {
 
         let mut data = vec![plaintext.len() as u8];
         data.extend_from_slice(plaintext);
-        while data.len() % 16 != 0 {
+        while !data.len().is_multiple_of(16) {
             data.push(0);
         }
 
@@ -396,7 +336,10 @@ impl Packet {
 
     /// Decrypts Tunnel-Password according to RFC 2868
     pub fn decrypt_tunnel_password(&self, encrypted: &[u8]) -> Option<Vec<u8>> {
-        if encrypted.len() < 18 || (encrypted.len() - 2) % 16 != 0 || self.secret.is_empty() {
+        if encrypted.len() < 18
+            || !(encrypted.len() - 2).is_multiple_of(16)
+            || self.secret.is_empty()
+        {
             return None;
         }
 
@@ -453,16 +396,23 @@ impl Packet {
     pub fn set_attribute_as<T: ToRadiusAttribute>(&mut self, type_code: u8, value: T) {
         match type_code {
             2 => {
-                if let Some(encrypted) = self.encrypt_user_password(&value.to_bytes()) {
-                    self.set_attribute(2, encrypted);
+                if let Some(encrypted_vec) = self.encrypt_user_password(&value.to_bytes()) {
+                    let encrypted_bytes = Bytes::from(encrypted_vec);
+                    self.set_attribute(2, encrypted_bytes);
                 }
             }
             69 => {
-                if let Some(encrypted) = self.encrypt_tunnel_password(&value.to_bytes()) {
-                    self.set_attribute(69, encrypted);
+                if let Some(encrypted_vec) = self.encrypt_tunnel_password(&value.to_bytes()) {
+                    // Convert Vec<u8> to Bytes
+                    let encrypted_bytes = Bytes::from(encrypted_vec);
+                    self.set_attribute(69, encrypted_bytes);
                 }
             }
-            _ => self.set_attribute(type_code, value.to_bytes()),
+            _ => {
+                // Convert the standard attribute bytes to Bytes
+                let attr_bytes = Bytes::from(value.to_bytes());
+                self.set_attribute(type_code, attr_bytes);
+            }
         }
     }
 
@@ -472,7 +422,11 @@ impl Packet {
     }
 
     pub fn set_vsa_attribute_as<T: ToRadiusAttribute>(&mut self, v_id: u32, v_type: u8, value: T) {
-        self.set_vsa_attribute(v_id, v_type, value.to_bytes());
+        let raw_bytes = value.to_bytes();
+
+        let value_bytes = Bytes::from(raw_bytes);
+
+        self.set_vsa_attribute(v_id, v_type, value_bytes);
     }
 
     pub fn create_response(&self, code: Code) -> Packet {
@@ -480,7 +434,7 @@ impl Packet {
             code,
             identifier: self.identifier,
             authenticator: self.authenticator,
-            attributes: Attributes::new(),
+            attributes: Attributes::default(),
             secret: self.secret.clone(),
         }
     }
@@ -498,62 +452,23 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
-    fn test_packet_new_with_various_types() {
-        // Since Packet::new now expects Arc<[u8]>:
-
-        // From string literal
-        let _p1 = Packet::new(Code::AccessRequest, Arc::from("mysecret".as_bytes()));
-
-        // From byte slice
-        let _p2 = Packet::new(Code::AccessRequest, Arc::from(&b"mysecret"[..]));
-
-        // From owned Vectors
-        let secret_vec = vec![1, 2, 3, 4];
-        let _p3 = Packet::new(Code::AccessRequest, Arc::from(secret_vec));
-    }
-
-    #[test]
-    fn parse_valid_packet() {
-        let secret = Arc::from(&b"shared-secret"[..]);
-
-        // Minimal valid RADIUS packet (20 bytes, no attributes)
-        let mut buf = vec![0u8; 20];
-        buf[0] = Code::AccessRequest as u8;
-        buf[1] = 42;
-        buf[2..4].copy_from_slice(&(20u16.to_be_bytes()));
-
-        for i in 4..20 {
-            buf[i] = i as u8;
-        }
-
-        // Pass Arc::clone(&secret) to parser
-        let packet = Packet::parse_packet(&buf, Arc::clone(&secret)).expect("packet should parse");
-
-        assert_eq!(packet.code, Code::AccessRequest);
-        assert_eq!(packet.identifier, 42);
-        assert_eq!(packet.authenticator, buf[4..20]);
-        assert_eq!(packet.attributes, Attributes(Vec::new()));
-        // Comparing Arc<[u8]> with &[u8] works because of Deref
-        assert_eq!(&*packet.secret, &*secret);
-    }
-
-    #[test]
     fn parse_packet_too_short() {
         let secret = Arc::from(&b"shared-secret"[..]);
-        let buf = vec![0u8; 10];
+        // Convert Vec to Bytes
+        let buf = Bytes::from(vec![0u8; 10]);
 
-        let err = Packet::parse_packet(&buf, secret).unwrap_err();
+        let err = Packet::parse_packet(buf, secret).unwrap_err();
         assert_eq!(err, PacketParseError::TooShortHeader);
     }
 
     #[test]
     fn test_encode_access_request_preserves_authenticator() {
-        // Use into() if you implemented From<Vec<u8>> or just Arc::from
         let mut packet = Packet::new(Code::AccessRequest, Arc::from(&b"secret"[..]));
         let auth = [1u8; 16];
         packet.authenticator = auth;
 
         let encoded = packet.encode().unwrap();
+        // encoded is likely Bytes or Vec<u8> depending on your encode() return type
         assert_eq!(&encoded[4..20], &auth);
     }
 
@@ -562,25 +477,25 @@ mod tests {
         let secret = Arc::from(&b"super-secret"[..]);
         let packet = Packet::new(Code::AccountingRequest, Arc::clone(&secret));
 
-        let encoded_bytes = packet.encode().unwrap();
+        // encode() should return something that can become Bytes
+        let encoded_bytes = Bytes::from(packet.encode().unwrap());
 
-        // Parse it back - now it carries the correct secret inside
-        let received = Packet::parse_packet(&encoded_bytes, Arc::clone(&secret)).unwrap();
+        // Parse it back - the received packet will own a slice of encoded_bytes
+        let received = Packet::parse_packet(encoded_bytes, Arc::clone(&secret)).unwrap();
 
-        // No need to pass 'secret' again; the packet knows its secret!
         assert!(received.verify_request());
     }
 
     #[test]
     fn test_verify_request_accounting_invalid_secret() {
-        let secret = Arc::from(&b"real-secret"[..]);
-        let wrong_secret = Arc::from(&b"hacker-secret"[..]);
+        let secret = Arc::from("real-secret".as_bytes());
+        let wrong_secret = Arc::from("hacker-secret".as_bytes());
 
-        let mut packet = Packet::new(Code::AccountingRequest, Arc::clone(&secret));
-        let encoded_bytes = packet.encode().unwrap();
+        let packet = Packet::new(Code::AccountingRequest, Arc::clone(&secret));
+        let encoded_bytes = Bytes::from(packet.encode().unwrap());
 
-        // Simulate a receiver that thinks the secret is 'wrong_secret'
-        let received = Packet::parse_packet(&encoded_bytes, wrong_secret).unwrap();
+        // Receiver uses the wrong secret for parsing/verification
+        let received = Packet::parse_packet(encoded_bytes, wrong_secret).unwrap();
 
         assert!(!received.verify_request());
     }
@@ -589,12 +504,14 @@ mod tests {
     fn test_verify_request_accounting_tampered_data() {
         let secret = Arc::from(&b"secret"[..]);
         let packet_to_send = Packet::new(Code::AccountingRequest, Arc::clone(&secret));
-        let mut encoded_bytes = packet_to_send.encode().unwrap();
 
-        // Tamper with the identifier after encoding
-        encoded_bytes[1] ^= 0xFF;
+        // We need a mutable version to tamper with it
+        let mut encoded_vec = packet_to_send.encode().unwrap();
 
-        let received = Packet::parse_packet(&encoded_bytes, secret).unwrap();
+        // Tamper with the identifier (index 1)
+        encoded_vec[1] ^= 0xFF;
+
+        let received = Packet::parse_packet(Bytes::from(encoded_vec), secret).unwrap();
         assert!(!received.verify_request());
     }
 

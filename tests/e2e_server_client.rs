@@ -1,90 +1,100 @@
-use anyhow::Result;
-use std::net::{SocketAddr, UdpSocket};
+#![cfg(feature = "tokio")]
+#![cfg(test)]
+
+
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::net::UdpSocket as TokioUdpSocket;
+use bytes::Bytes;
 
-// Assuming these are available in your workspace/crate
-use abol_core::attribute::Avp;
+// 1. IMPORTANT: Import the trait to make .local_addr() work
+use rt::net::AsyncUdpSocket;
+use rt::{Runtime,  Executor}; 
+use abol_util::rt::tokio::{TokioRuntime};
+
+// RADIUS Protocol imports
+use abol_core::attribute::Attributes;
 use abol_core::packet::Packet;
-use abol_core::{Code, HandlerResult, Request, Response};
-use rt::Executor;
-use server::{HandlerFn, Server, StaticSecret};
+use abol_core::{Code, Request, Response, Cidr};
+use abol_codegen::rfc2865::Rfc2865Ext;
 
-#[test]
-fn test_radius_server_e2e() -> Result<()> {
-    // 1. Setup constants and server configuration
-    let bind_addr = "127.0.0.1:18124";
-    let shared_secret = b"secret123";
+// Server crate imports
+use server::{BoxError, HandlerFn, SecretManager, SecretSource, Server};
 
-    // We create a provider that simply returns "secret123" for any address
-    let secret_provider = StaticSecret::new(shared_secret.clone().to_vec());
+/// Mock provider for the shared secret
+struct MySecretProvider;
 
-    // 2. Define a simple handler logic
-    // If the username is "alice", accept; otherwise reject.
-    let handler = HandlerFn(|req: Request| async move {
-        let username_attr = req
-            .packet
-            .attributes
-            .0
-            .iter()
-            .find(|a| a.attribute_type == 1); // User-Name is Type 1
+impl SecretSource for MySecretProvider {
+    async fn get_all_secrets(&self) -> Result<Vec<(Cidr, Vec<u8>)>, BoxError> {
+        Ok(vec![
+            (Cidr { ip: "127.0.0.1".parse().unwrap(), prefix: 32 }, b"secret".to_vec()),
+        ])
+    }
+}
 
-        let response_code = match username_attr {
-            Some(attr) if attr.value == b"alice" => Code::AccessAccept,
-            _ => Code::AccessReject,
-        };
+#[tokio::test]
+async fn test_access_request_e2e() {
+    // --- SETUP ---
+    let shared_secret: Arc<[u8]> = Arc::from(b"secret".as_slice());
+    let secret_manager = SecretManager::new(Arc::new(MySecretProvider), 3600);
+    
+    let runtime = TokioRuntime::new();
+    let addr = "127.0.0.1:0".parse().unwrap();
 
-        let mut res_packet = req.packet.create_response(response_code);
-        // Echo back a custom attribute or just return the packet
-        Ok(Response { packet: res_packet })
+    // 2. Clone the executor BEFORE moving the runtime into the server
+    let executor = runtime.executor().clone();
+
+    // 3. Bind the socket using the runtime
+    let socket = runtime.bind(addr).await.expect("Failed to bind socket");
+    
+    // This works now because AsyncUdpSocket is in scope
+    let target_addr = socket.local_addr().expect("Failed to get local address");
+
+    // Define the handler logic
+    let handler = HandlerFn(|request: Request| async move {
+        let name = request.packet.get_user_name().unwrap_or_default();
+        let code = if name == "admin" { Code::AccessAccept } else { Code::AccessReject };
+        Ok(Response { 
+            packet: request.packet.create_response(code) 
+        })
     });
 
-    // 3. Initialize the server
-    let server = Server::new(bind_addr, secret_provider, handler);
+    // 4. Initialize Server (moves runtime and socket)
+    let server = Server::new(runtime, socket, secret_manager, handler);
 
-    // 4. Start the server in the background using your custom executor
-    Executor::execute(Box::pin(async move {
-        if let Err(e) = server.listen_and_serve().await {
-            eprintln!("Server error: {:?}", e);
-        }
+    // 5. Spawn the server using our cloned executor
+    executor.execute(Box::pin(async move {
+        let _ = server.listen_and_serve().await;
     }));
 
-    // Give the server a moment to bind to the socket
-    std::thread::sleep(Duration::from_millis(200));
+    // Give the server a moment to start listening
+    tokio::time::sleep(Duration::from_millis(50)).await;
 
-    // 5. Simulate a Client using standard UdpSocket
-    let client_sock = UdpSocket::bind("127.0.0.1:0")?;
-    client_sock.connect(bind_addr)?;
-    client_sock.set_read_timeout(Some(Duration::from_secs(2)))?;
+    // --- CLIENT: SEND REQUEST ---
+    let client_sock = TokioUdpSocket::bind("127.0.0.1:0").await.unwrap();
+    
+    let mut req_packet = Packet {
+        code: Code::AccessRequest,
+        identifier: 1,
+        authenticator: [0x11; 16],
+        attributes: Attributes::default(),
+        secret: shared_secret.clone(),
+    };
+    req_packet.set_user_name("admin".to_string());
 
-    // 6. Create and send a valid Access-Request
-    // Note: Packet::new requires the secret to generate the correct Request Authenticator
-    let mut request_packet = Packet::new(Code::AccessRequest, shared_secret);
-    request_packet.identifier = 123;
-    request_packet.attributes.0.push(Avp {
-        attribute_type: 1, // User-Name
-        value: b"alice".to_vec(),
-    });
+    let data = req_packet.encode().unwrap();
+    client_sock.send_to(&data, &target_addr).await.unwrap();
 
-    let encoded_req = request_packet.encode()?;
-    client_sock.send(&encoded_req)?;
+    // --- CLIENT: RECEIVE RESPONSE ---
+    let mut buf = [0u8; 2048];
+    let (len, _) = tokio::time::timeout(Duration::from_secs(2), client_sock.recv_from(&mut buf))
+        .await
+        .expect("Test timed out waiting for RADIUS response")
+        .expect("Failed to receive data");
 
-    // 7. Receive response
-    let mut buf = [0u8; 4096];
-    let (amt, _) = client_sock.recv_from(&mut buf)?;
-
-    // 8. Parse and Validate Response
-    // We use the same secret to verify the response authenticator
-    let response_packet = Packet::parse_packet(&buf[..amt], shared_secret)
-        .map_err(|e| anyhow::anyhow!("Failed to parse response: {:?}", e))?;
-
-    // Assertions
-    assert_eq!(
-        response_packet.code,
-        Code::AccessAccept,
-        "Should have accepted 'alice'"
-    );
-    assert_eq!(response_packet.identifier, 123, "Identifier mismatch");
-
-    println!("E2E Test Passed: Received Access-Accept for user 'alice'");
-    Ok(())
+    let response = Packet::parse_packet(Bytes::copy_from_slice(&buf[..len]), shared_secret).unwrap();
+    
+    // --- ASSERTIONS ---
+    assert_eq!(response.code, Code::AccessAccept, "Server should have accepted 'admin' user");
+    assert_eq!(response.identifier, 1, "Response identifier must match request");
 }

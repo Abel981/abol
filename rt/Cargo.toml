@@ -6,10 +6,7 @@ license = "MIT"
 
 
 [dependencies]
-tokio = { version = "1", optional = true, features=["rt","time", "net"] }
-smol = { version = "2", optional = true}
 async-trait = "0.1.88"
 anyhow = "1.0"
 futures = "0.3.31"
-[features]
-tokio = ["dep:tokio"]
+

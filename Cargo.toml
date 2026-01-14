@@ -1,5 +1,5 @@
 [package]
-name = "radius-protocol"
+name = "abol"
 version = "0.1.0"
 edition = "2024"
 authors = ["Abel W. Shimeles <abel.wen0@gmail.com>"]
@@ -9,17 +9,16 @@ readme = "README.md"
 
 [workspace]
 resolver = "3"
-members = ["server", "rt" , "abol-core", "abol-parser", "abol-codegen"]
+members = [
+    "server", 
+    "rt", 
+    "abol-core", 
+    "abol-parser", 
+    "abol-codegen",
+    "fuzz", 
+    "abol-util",
+    ]
 
-[features]
-# Runtime support features
-default = ["tokio", "server"]
-tokio = ["rt/tokio"]
-smol = ["rt/smol"]
-
-# Client and server logical features
-client = []
-server = []
 [workspace.dependencies]
 abol-core = { path = "abol-core" }
 abol-parser = { path = "abol-parser" }
@@ -27,29 +26,53 @@ abol-codegen = { path = "abol-codegen" }
 rt = { path = "rt" }
 server = { path = "server" }
 
+anyhow = "1.0"
+thiserror = "2.0"
+byteorder = "1.5"
+md-5 = "0.10"
+bytes = "1.11"
+rand = "0.9"
+quote = "1.0"
+proc-macro2 = "1.0"
+heck = "0.5"
+moka = { version = "0.12", features = ["future"] }
+zeroize = "1.8"
+dashmap = "6.1"
+
+
 [dependencies]
-rt = { workspace = true, features = ["tokio"] }
+rt = { workspace = true }
 abol-core = { workspace = true }
 abol-codegen = { workspace = true }
 server = { workspace = true }
-async-trait = "0.1.88"
-anyhow = "1.0"
-rand = "0.9.2"
-thiserror = "2.0.17"
-byteorder = "1.5.0"
-md-5 = "0.10.6"
-quote = "1.0.42"
-proc-macro2 = "1.0.103"
-heck = "0.5.0"
-clap = { version = "4.5.53", features = ["derive"] }
-futures = "0.3.31"
-moka = { version = "0.12", features = ["future"] }
-zeroize = "1.8.2"
 
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+byteorder = { workspace = true }
+md-5 = { workspace = true }
+bytes = { workspace = true }
+rand = { workspace = true }
+quote = { workspace = true }
+proc-macro2 = { workspace = true }
+heck = { workspace = true }
+moka = { workspace = true }
+zeroize = { workspace = true }
+dashmap = { workspace = true }
 
+[dev-dependencies]
+tokio = { version = "1"}
+smol = {version = "2"}
+abol-util = {path = "./abol-util"}
+[features]
+tokio = ["abol-util/tokio"]
+smol = ["abol-util/smol"]
 
+[[example]]
+name = "tokio-server"
+path = "examples/tokio-server.rs"
+required-features = ["tokio"]
 
-
-
-
-
+[[example]]
+name = "smol-server"
+path = "examples/smol-server.rs"
+required-features = ["smol"]

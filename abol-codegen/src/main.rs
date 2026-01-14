@@ -15,7 +15,7 @@ struct Args {
     output: PathBuf,
 
     /// Trait name for the generated code
-    #[arg(short, long, default_value = "radius_core")]
+    #[arg(short, long)]
     name: String,
 
     /// If set, identical attribute definitions across files won't cause an error

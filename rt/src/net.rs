@@ -1,55 +1,16 @@
-#[cfg(feature = "smol")]
-use smol::net::AsyncToSocketAddrs;
+use async_trait::async_trait;
+use std::io::Result;
+use std::net::SocketAddr;
 
-pub enum UdpSocket {
-    #[cfg(feature = "tokio")]
-    TokioUdpSocket(tokio::net::UdpSocket),
-    #[cfg(feature = "smol")]
-    SmolUdpSocket(smol::net::UdpSocket),
+#[async_trait]
+pub trait AsyncUdpSocket: Send + Sync {
+    /// Returns the local address this socket is bound to.
+    fn local_addr(&self) -> Result<SocketAddr>;
+
+    /// Sends data to the given target address.
+    async fn send_to(&self, buf: &[u8], target: SocketAddr) -> Result<usize>;
+
+    /// Receives data from the socket, returning the number of bytes and the source address.
+    async fn recv_from(&self, buf: &mut [u8]) -> Result<(usize, SocketAddr)>;
 }
 
-impl UdpSocket {
-    #[cfg(feature = "tokio")]
-    pub async fn bind(addr: impl tokio::net::ToSocketAddrs + Send) -> anyhow::Result<Self> {
-        {
-            let socket = tokio::net::UdpSocket::bind(addr).await?;
-            return Ok(UdpSocket::TokioUdpSocket(socket));
-        }
-    }
-    #[cfg(feature = "smol")]
-    pub async fn bind(addr: impl AsyncToSocketAddrs + Send) -> anyhow::Result<Self> {
-        {
-            let socket = smol::net::UdpSocket::bind(addr).await?;
-            return Ok(UdpSocket::SmolUdpSocket(socket));
-        }
-    }
-
-    pub async fn recv_from(&self, buf: &mut [u8]) -> anyhow::Result<(usize, std::net::SocketAddr)> {
-        match self {
-            #[cfg(feature = "tokio")]
-            UdpSocket::TokioUdpSocket(socket) => socket.recv_from(buf).await.map_err(Into::into),
-            #[cfg(feature = "smol")]
-            UdpSocket::SmolUdpSocket(socket) => socket.recv_from(buf).await.map_err(Into::into),
-        }
-    }
-    pub async fn send_to(&self, buf: &[u8], target: std::net::SocketAddr) -> anyhow::Result<usize> {
-        match self {
-            #[cfg(feature = "tokio")]
-            UdpSocket::TokioUdpSocket(socket) => {
-                socket.send_to(buf, target).await.map_err(Into::into)
-            }
-            #[cfg(feature = "smol")]
-            UdpSocket::SmolUdpSocket(socket) => {
-                socket.send_to(buf, target).await.map_err(Into::into)
-            }
-        }
-    }
-    pub fn local_addr(&self) -> anyhow::Result<std::net::SocketAddr> {
-        match self {
-            #[cfg(feature = "tokio")]
-            UdpSocket::TokioUdpSocket(socket) => socket.local_addr().map_err(Into::into),
-            #[cfg(feature = "smol")]
-            UdpSocket::SmolUdpSocket(socket) => socket.local_addr().map_err(Into::into),
-        }
-    }
-}

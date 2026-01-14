@@ -1,5 +1,4 @@
-use abol_core::{attribute::FromRadiusAttribute, attribute::ToRadiusAttribute, packet::Packet};
-use std::net::{Ipv4Addr, Ipv6Addr};
+use abol_core::{attribute::ToRadiusAttribute, packet::Packet};
 use std::time::SystemTime;
 pub const ACCT_INPUT_GIGAWORDS_TYPE: u8 = 52u8;
 pub const ACCT_OUTPUT_GIGAWORDS_TYPE: u8 = 53u8;
@@ -115,21 +114,21 @@ impl Rfc2869Ext for Packet {
         self.get_attribute_as::<u32>(ACCT_INPUT_GIGAWORDS_TYPE)
     }
     fn set_acct_input_gigawords(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ACCT_INPUT_GIGAWORDS_TYPE, wire_val);
     }
     fn get_acct_output_gigawords(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(ACCT_OUTPUT_GIGAWORDS_TYPE)
     }
     fn set_acct_output_gigawords(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ACCT_OUTPUT_GIGAWORDS_TYPE, wire_val);
     }
     fn get_event_timestamp(&self) -> Option<SystemTime> {
         self.get_attribute_as::<SystemTime>(EVENT_TIMESTAMP_TYPE)
     }
     fn set_event_timestamp(&mut self, value: SystemTime) {
-        let wire_val: SystemTime = value.into();
+        let wire_val = value;
         self.set_attribute_as::<SystemTime>(EVENT_TIMESTAMP_TYPE, wire_val);
     }
     fn get_arap_password(&self) -> Option<Vec<u8>> {
@@ -164,7 +163,7 @@ impl Rfc2869Ext for Packet {
         self.get_attribute_as::<u32>(ARAP_SECURITY_TYPE)
     }
     fn set_arap_security(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ARAP_SECURITY_TYPE, wire_val);
     }
     fn get_arap_security_data(&self) -> Option<String> {
@@ -178,7 +177,7 @@ impl Rfc2869Ext for Packet {
         self.get_attribute_as::<u32>(PASSWORD_RETRY_TYPE)
     }
     fn set_password_retry(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(PASSWORD_RETRY_TYPE, wire_val);
     }
     fn get_prompt(&self) -> Option<Prompt> {
@@ -230,7 +229,7 @@ impl Rfc2869Ext for Packet {
         self.get_attribute_as::<u32>(ACCT_INTERIM_INTERVAL_TYPE)
     }
     fn set_acct_interim_interval(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ACCT_INTERIM_INTERVAL_TYPE, wire_val);
     }
     fn get_nas_port_id(&self) -> Option<String> {

@@ -1,25 +1,23 @@
-use abol_core::{attribute::FromRadiusAttribute, attribute::ToRadiusAttribute, packet::Packet};
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::time::SystemTime;
+use abol_core::packet::Packet;
 pub const ERROR_CAUSE_TYPE: u8 = 101u8;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum ErrorCause {
-    ResidualContextRemoved = 201u32,
-    InvalidEapPacket = 202u32,
-    UnsupportedAttribute = 401u32,
-    MissingAttribute = 402u32,
-    NasIdentificationMismatch = 403u32,
-    InvalidRequest = 404u32,
-    UnsupportedService = 405u32,
-    UnsupportedExtension = 406u32,
-    AdministrativelyProhibited = 501u32,
-    ProxyRequestNotRoutable = 502u32,
-    SessionContextNotFound = 503u32,
-    SessionContextNotRemovable = 504u32,
-    ProxyProcessingError = 505u32,
-    ResourcesUnavailable = 506u32,
-    RequestInitiated = 507u32,
+    ResidualContextRemoved,
+    InvalidEapPacket,
+    UnsupportedAttribute,
+    MissingAttribute,
+    NasIdentificationMismatch,
+    InvalidRequest,
+    UnsupportedService,
+    UnsupportedExtension,
+    AdministrativelyProhibited,
+    ProxyRequestNotRoutable,
+    SessionContextNotFound,
+    SessionContextNotRemovable,
+    ProxyProcessingError,
+    ResourcesUnavailable,
+    RequestInitiated,
     Unknown(u32),
 }
 impl From<u32> for ErrorCause {

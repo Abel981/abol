@@ -1,6 +1,4 @@
-use abol_core::{attribute::FromRadiusAttribute, attribute::ToRadiusAttribute, packet::Packet};
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::time::SystemTime;
+use abol_core::packet::Packet;
 pub const ACCT_STATUS_TYPE_TYPE: u8 = 40u8;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -195,21 +193,21 @@ impl Rfc2866Ext for Packet {
         self.get_attribute_as::<u32>(ACCT_DELAY_TIME_TYPE)
     }
     fn set_acct_delay_time(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ACCT_DELAY_TIME_TYPE, wire_val);
     }
     fn get_acct_input_octets(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(ACCT_INPUT_OCTETS_TYPE)
     }
     fn set_acct_input_octets(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ACCT_INPUT_OCTETS_TYPE, wire_val);
     }
     fn get_acct_output_octets(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(ACCT_OUTPUT_OCTETS_TYPE)
     }
     fn set_acct_output_octets(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ACCT_OUTPUT_OCTETS_TYPE, wire_val);
     }
     fn get_acct_session_id(&self) -> Option<String> {
@@ -231,21 +229,21 @@ impl Rfc2866Ext for Packet {
         self.get_attribute_as::<u32>(ACCT_SESSION_TIME_TYPE)
     }
     fn set_acct_session_time(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ACCT_SESSION_TIME_TYPE, wire_val);
     }
     fn get_acct_input_packets(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(ACCT_INPUT_PACKETS_TYPE)
     }
     fn set_acct_input_packets(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ACCT_INPUT_PACKETS_TYPE, wire_val);
     }
     fn get_acct_output_packets(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(ACCT_OUTPUT_PACKETS_TYPE)
     }
     fn set_acct_output_packets(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ACCT_OUTPUT_PACKETS_TYPE, wire_val);
     }
     fn get_acct_terminate_cause(&self) -> Option<AcctTerminateCause> {
@@ -267,7 +265,7 @@ impl Rfc2866Ext for Packet {
         self.get_attribute_as::<u32>(ACCT_LINK_COUNT_TYPE)
     }
     fn set_acct_link_count(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ACCT_LINK_COUNT_TYPE, wire_val);
     }
 }

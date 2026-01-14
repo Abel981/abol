@@ -2,7 +2,6 @@ pub mod dictionary;
 
 use std::{
     collections::HashSet,
-    fmt::format,
     fs::File,
     io::{BufRead, BufReader},
     path::{Path, PathBuf},
@@ -246,29 +245,67 @@ impl Parser {
         Ok(())
     }
 
-    // fields: &[&str] expected from split_whitespace
     fn parse_attribute(&self, fields: &[&str]) -> std::result::Result<DictionaryAttribute, String> {
-        // Expected: ATTRIBUTE <name> <type> <oid> [encrypt]
         if fields.len() < 4 {
             return Err("ATTRIBUTE line too short".into());
         }
+
         let name = fields[1].to_string();
-        let attr_type = Self::parse_attribute_type(fields[3])?;
         let oid = parse_oid(fields[2])?;
-        let size = SizeFlag::Any; // TODO: parse explicit size if present in extended dialect
-        let encrypt = if fields.len() == 5 {
-            let encrypt_val = fields[4];
-            let Some((_, value)) = encrypt_val.split_once('=') else {
-                return Err("invalid encrypt format".into());
+
+        // --- START Size and Type Parsing ---
+        let raw_type = fields[3];
+        let (attr_type, size) = if let Some(start) = raw_type.find('[') {
+            let end = raw_type
+                .find(']')
+                .ok_or("Missing closing bracket in type")?;
+            let base_type_str = &raw_type[..start];
+            let size_content = &raw_type[start + 1..end];
+
+            let base_type = Self::parse_attribute_type(base_type_str)?;
+
+            let size_flag = if let Some((min_s, max_s)) = size_content.split_once('-') {
+                let min = min_s
+                    .trim()
+                    .parse::<u32>()
+                    .map_err(|_| "Invalid min range")?;
+                let max = max_s
+                    .trim()
+                    .parse::<u32>()
+                    .map_err(|_| "Invalid max range")?;
+                SizeFlag::Range(min, max)
+            } else {
+                let exact = size_content
+                    .trim()
+                    .parse::<u32>()
+                    .map_err(|_| "Invalid exact size")?;
+                SizeFlag::Exact(exact)
             };
-            Some(
-                value
-                    .parse::<u8>()
-                    .map_err(|e| format!("invalid encrypt: {}", e))?,
-            )
+
+            (base_type, size_flag)
         } else {
-            None
+            (Self::parse_attribute_type(raw_type)?, SizeFlag::Any)
         };
+        // --- END Size and Type Parsing ---
+
+        let mut encrypt = None;
+        let mut concat = None;
+
+        for &flag in &fields[4..] {
+            let flag_lc = flag.to_lowercase();
+            if flag_lc.starts_with("encrypt=") {
+                let (_, value) = flag
+                    .split_once('=')
+                    .ok_or_else(|| "invalid encrypt format".to_string())?;
+                encrypt = Some(
+                    value
+                        .parse::<u8>()
+                        .map_err(|e| format!("invalid encrypt: {}", e))?,
+                );
+            } else if flag_lc == "concat" {
+                concat = Some(true);
+            }
+        }
 
         Ok(DictionaryAttribute {
             name,
@@ -277,7 +314,7 @@ impl Parser {
             size,
             encrypt,
             has_tag: None,
-            concat: None,
+            concat,
         })
     }
 
@@ -310,7 +347,6 @@ impl Parser {
         Ok(DictionaryVendor {
             name,
             code,
-            // NOTE: we assume DictionaryVendor has attributes & values vectors
             attributes: Vec::new(),
             values: Vec::new(),
         })

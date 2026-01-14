@@ -5,5 +5,5 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
-anyhow = "1.0"
-thiserror = "2.0.17"
+anyhow = { workspace = true }
+thiserror = { workspace = true }

@@ -2,8 +2,10 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+use bytes::{BufMut, Bytes, BytesMut};
 pub type AttributeType = u8;
-pub type AttributeValue = Vec<u8>;
+pub type AttributeValue = Bytes;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Avp {
@@ -11,13 +13,8 @@ pub struct Avp {
     pub value: AttributeValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Attributes(pub Vec<Avp>);
-impl Attributes {
-    pub fn new() -> Self {
-        Attributes(Vec::new())
-    }
-}
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum AttributeParseError {
@@ -27,7 +24,7 @@ pub enum AttributeParseError {
     InvalidLength(u8),
 }
 
-pub fn parse_attributes(mut b: &[u8]) -> Result<Attributes, AttributeParseError> {
+pub fn parse_attributes(mut b: Bytes) -> Result<Attributes, AttributeParseError> {
     let mut attrs = Vec::new();
     while !b.is_empty() {
         if b.len() < 2 {
@@ -38,13 +35,13 @@ pub fn parse_attributes(mut b: &[u8]) -> Result<Attributes, AttributeParseError>
         if length < 2 || length > b.len() {
             return Err(AttributeParseError::InvalidLength(b[1]));
         }
-        let value = &b[2..length];
-        let avp = Avp {
+        let mut attr_block = b.split_to(length);
+        let value = attr_block.split_off(2); // Remove type/length bytes
+
+        attrs.push(Avp {
             attribute_type,
-            value: value.to_vec(),
-        };
-        attrs.push(avp);
-        b = &b[length..];
+            value,
+        });
     }
     Ok(Attributes(attrs))
 }
@@ -119,24 +116,28 @@ impl Attributes {
         }
         None
     }
-    pub fn set_vsa_attribute(&mut self, vendor_id: u32, vendor_type: u8, value: AttributeValue) {
+    pub fn set_vsa_attribute(&mut self, vendor_id: u32, vendor_type: u8, value: Bytes) {
         self.0.retain(|avp| {
             if avp.attribute_type != 26 || avp.value.len() < 6 {
                 return true;
             }
+
             let v_id = u32::from_be_bytes([avp.value[0], avp.value[1], avp.value[2], avp.value[3]]);
             let v_type = avp.value[4];
+
             !(v_id == vendor_id && v_type == vendor_type)
         });
 
-        let mut vsa_value = Vec::with_capacity(6 + value.len());
-        vsa_value.extend_from_slice(&vendor_id.to_be_bytes());
-        vsa_value.push(vendor_type);
-        vsa_value.push((2 + value.len()) as u8);
-        vsa_value.extend_from_slice(&value);
+        let mut vsa_value = BytesMut::with_capacity(6 + value.len());
+
+        vsa_value.put_u32(vendor_id);
+        vsa_value.put_u8(vendor_type);
+        vsa_value.put_u8((2 + value.len()) as u8); // 2 is for Type + Length headers
+        vsa_value.put(value);
+
         self.0.push(Avp {
             attribute_type: 26,
-            value: vsa_value,
+            value: vsa_value.freeze(), // Converts BytesMut to Bytes (O(1))
         });
     }
 }

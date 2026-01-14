@@ -1,6 +1,5 @@
-use abol_core::{attribute::FromRadiusAttribute, attribute::ToRadiusAttribute, packet::Packet};
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::time::SystemTime;
+use abol_core::packet::Packet;
+use std::net::Ipv6Addr;
 pub const FRAMED_IPV6_ADDRESS_TYPE: u8 = 168u8;
 pub const DNS_SERVER_IPV6_ADDRESS_TYPE: u8 = 169u8;
 pub const ROUTE_IPV6_INFORMATION_TYPE: u8 = 170u8;
@@ -23,21 +22,21 @@ impl Rfc6911Ext for Packet {
         self.get_attribute_as::<Ipv6Addr>(FRAMED_IPV6_ADDRESS_TYPE)
     }
     fn set_framed_ipv6_address(&mut self, value: Ipv6Addr) {
-        let wire_val: Ipv6Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv6Addr>(FRAMED_IPV6_ADDRESS_TYPE, wire_val);
     }
     fn get_dns_server_ipv6_address(&self) -> Option<Ipv6Addr> {
         self.get_attribute_as::<Ipv6Addr>(DNS_SERVER_IPV6_ADDRESS_TYPE)
     }
     fn set_dns_server_ipv6_address(&mut self, value: Ipv6Addr) {
-        let wire_val: Ipv6Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv6Addr>(DNS_SERVER_IPV6_ADDRESS_TYPE, wire_val);
     }
     fn get_route_ipv6_information(&self) -> Option<Vec<u8>> {
         self.get_attribute_as::<Vec<u8>>(ROUTE_IPV6_INFORMATION_TYPE)
     }
     fn set_route_ipv6_information(&mut self, value: Vec<u8>) {
-        let wire_val: Vec<u8> = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Vec<u8>>(ROUTE_IPV6_INFORMATION_TYPE, wire_val);
     }
     fn get_delegated_ipv6_prefix_pool(&self) -> Option<String> {

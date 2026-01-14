@@ -1,0 +1,12 @@
+name: Feature matrix
+
+on: [push, pull_request]
+
+jobs:
+  features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-hack
+      - run: cargo hack check --each-feature --no-dev-deps

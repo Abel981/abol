@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 use abol_core::{attribute::FromRadiusAttribute, attribute::ToRadiusAttribute, packet::Packet};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::time::SystemTime;
@@ -309,14 +310,14 @@ impl ArubaExt for Packet {
         self.get_attribute_as::<u32>(ARUBA_USER_VLAN_TYPE)
     }
     fn set_aruba_user_vlan(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ARUBA_USER_VLAN_TYPE, wire_val);
     }
     fn get_aruba_priv_admin_user(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(ARUBA_PRIV_ADMIN_USER_TYPE)
     }
     fn set_aruba_priv_admin_user(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ARUBA_PRIV_ADMIN_USER_TYPE, wire_val);
     }
     fn get_aruba_admin_role(&self) -> Option<String> {
@@ -386,7 +387,7 @@ impl ArubaExt for Packet {
         self.get_attribute_as::<u32>(ARUBA_NO_DHCP_FINGERPRINT_TYPE)
     }
     fn set_aruba_no_dhcp_fingerprint(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ARUBA_NO_DHCP_FINGERPRINT_TYPE, wire_val);
     }
     fn get_aruba_mdps_device_udid(&self) -> Option<String> {
@@ -414,7 +415,7 @@ impl ArubaExt for Packet {
         self.get_attribute_as::<u32>(ARUBA_MDPS_MAX_DEVICES_TYPE)
     }
     fn set_aruba_mdps_max_devices(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ARUBA_MDPS_MAX_DEVICES_TYPE, wire_val);
     }
     fn get_aruba_mdps_device_name(&self) -> Option<String> {
@@ -527,7 +528,7 @@ impl ArubaExt for Packet {
         self.get_attribute_as::<Ipv4Addr>(ARUBA_AP_IP_ADDRESS_TYPE)
     }
     fn set_aruba_ap_ip_address(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(ARUBA_AP_IP_ADDRESS_TYPE, wire_val);
     }
     fn get_aruba_airgroup_shared_group(&self) -> Option<String> {
@@ -563,21 +564,21 @@ impl ArubaExt for Packet {
         self.get_attribute_as::<u32>(ARUBA_AUTH_SURVMETHOD_TYPE)
     }
     fn set_aruba_auth_survmethod(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ARUBA_AUTH_SURVMETHOD_TYPE, wire_val);
     }
     fn get_aruba_port_bounce_host(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(ARUBA_PORT_BOUNCE_HOST_TYPE)
     }
     fn set_aruba_port_bounce_host(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(ARUBA_PORT_BOUNCE_HOST_TYPE, wire_val);
     }
     fn get_aruba_calea_server_ip(&self) -> Option<Ipv4Addr> {
         self.get_attribute_as::<Ipv4Addr>(ARUBA_CALEA_SERVER_IP_TYPE)
     }
     fn set_aruba_calea_server_ip(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(ARUBA_CALEA_SERVER_IP_TYPE, wire_val);
     }
     fn get_aruba_admin_path(&self) -> Option<String> {

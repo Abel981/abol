@@ -1,6 +1,6 @@
-use abol_core::{attribute::FromRadiusAttribute, attribute::ToRadiusAttribute, packet::Packet};
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::time::SystemTime;
+use abol_core::packet::Packet;
+use std::net::Ipv4Addr;
+
 pub const USER_NAME_TYPE: u8 = 1u8;
 pub const USER_PASSWORD_TYPE: u8 = 2u8;
 pub const CHAP_PASSWORD_TYPE: u8 = 3u8;
@@ -478,14 +478,14 @@ impl Rfc2865Ext for Packet {
         self.get_attribute_as::<Ipv4Addr>(NAS_IP_ADDRESS_TYPE)
     }
     fn set_nas_ip_address(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(NAS_IP_ADDRESS_TYPE, wire_val);
     }
     fn get_nas_port(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(NAS_PORT_TYPE)
     }
     fn set_nas_port(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(NAS_PORT_TYPE, wire_val);
     }
     fn get_service_type(&self) -> Option<ServiceType> {
@@ -508,14 +508,14 @@ impl Rfc2865Ext for Packet {
         self.get_attribute_as::<Ipv4Addr>(FRAMED_IP_ADDRESS_TYPE)
     }
     fn set_framed_ip_address(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(FRAMED_IP_ADDRESS_TYPE, wire_val);
     }
     fn get_framed_ip_netmask(&self) -> Option<Ipv4Addr> {
         self.get_attribute_as::<Ipv4Addr>(FRAMED_IP_NETMASK_TYPE)
     }
     fn set_framed_ip_netmask(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(FRAMED_IP_NETMASK_TYPE, wire_val);
     }
     fn get_framed_routing(&self) -> Option<FramedRouting> {
@@ -537,7 +537,7 @@ impl Rfc2865Ext for Packet {
         self.get_attribute_as::<u32>(FRAMED_MTU_TYPE)
     }
     fn set_framed_mtu(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(FRAMED_MTU_TYPE, wire_val);
     }
     fn get_framed_compression(&self) -> Option<FramedCompression> {
@@ -552,7 +552,7 @@ impl Rfc2865Ext for Packet {
         self.get_attribute_as::<Ipv4Addr>(LOGIN_IP_HOST_TYPE)
     }
     fn set_login_ip_host(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(LOGIN_IP_HOST_TYPE, wire_val);
     }
     fn get_login_service(&self) -> Option<LoginService> {
@@ -603,7 +603,7 @@ impl Rfc2865Ext for Packet {
         self.get_attribute_as::<Ipv4Addr>(FRAMED_IPX_NETWORK_TYPE)
     }
     fn set_framed_ipx_network(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(FRAMED_IPX_NETWORK_TYPE, wire_val);
     }
     fn get_state(&self) -> Option<Vec<u8>> {
@@ -631,14 +631,14 @@ impl Rfc2865Ext for Packet {
         self.get_attribute_as::<u32>(SESSION_TIMEOUT_TYPE)
     }
     fn set_session_timeout(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(SESSION_TIMEOUT_TYPE, wire_val);
     }
     fn get_idle_timeout(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(IDLE_TIMEOUT_TYPE)
     }
     fn set_idle_timeout(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(IDLE_TIMEOUT_TYPE, wire_val);
     }
     fn get_termination_action(&self) -> Option<TerminationAction> {
@@ -702,14 +702,14 @@ impl Rfc2865Ext for Packet {
         self.get_attribute_as::<u32>(FRAMED_APPLETALK_LINK_TYPE)
     }
     fn set_framed_appletalk_link(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(FRAMED_APPLETALK_LINK_TYPE, wire_val);
     }
     fn get_framed_appletalk_network(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(FRAMED_APPLETALK_NETWORK_TYPE)
     }
     fn set_framed_appletalk_network(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(FRAMED_APPLETALK_NETWORK_TYPE, wire_val);
     }
     fn get_framed_appletalk_zone(&self) -> Option<String> {
@@ -738,7 +738,7 @@ impl Rfc2865Ext for Packet {
         self.get_attribute_as::<u32>(PORT_LIMIT_TYPE)
     }
     fn set_port_limit(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(PORT_LIMIT_TYPE, wire_val);
     }
     fn get_login_lat_port(&self) -> Option<String> {

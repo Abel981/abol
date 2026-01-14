@@ -1,0 +1,22 @@
+[package]
+name = "server-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+abol-core = { workspace = true }
+abol-codegen = { workspace = true }
+bytes = "1.11.0"
+
+
+[[bin]]
+name = "fuzz_target_1"
+path = "fuzz_targets/fuzz_target_1.rs"
+test = false
+doc = false
+bench = false

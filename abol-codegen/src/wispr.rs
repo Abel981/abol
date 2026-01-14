@@ -1,6 +1,4 @@
-use abol_core::{attribute::FromRadiusAttribute, attribute::ToRadiusAttribute, packet::Packet};
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::time::SystemTime;
+use abol_core::packet::Packet;
 pub const VENDOR_WIS_PR: u32 = 14122u32;
 pub const WISPR_LOCATION_ID_TYPE: u8 = 1u8;
 pub const WISPR_LOCATION_NAME_TYPE: u8 = 2u8;
@@ -70,28 +68,28 @@ impl WisprExt for Packet {
         self.get_attribute_as::<u32>(WISPR_BANDWIDTH_MIN_UP_TYPE)
     }
     fn set_wispr_bandwidth_min_up(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(WISPR_BANDWIDTH_MIN_UP_TYPE, wire_val);
     }
     fn get_wispr_bandwidth_min_down(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(WISPR_BANDWIDTH_MIN_DOWN_TYPE)
     }
     fn set_wispr_bandwidth_min_down(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(WISPR_BANDWIDTH_MIN_DOWN_TYPE, wire_val);
     }
     fn get_wispr_bandwidth_max_up(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(WISPR_BANDWIDTH_MAX_UP_TYPE)
     }
     fn set_wispr_bandwidth_max_up(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(WISPR_BANDWIDTH_MAX_UP_TYPE, wire_val);
     }
     fn get_wispr_bandwidth_max_down(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(WISPR_BANDWIDTH_MAX_DOWN_TYPE)
     }
     fn set_wispr_bandwidth_max_down(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(WISPR_BANDWIDTH_MAX_DOWN_TYPE, wire_val);
     }
     fn get_wispr_session_terminate_time(&self) -> Option<String> {

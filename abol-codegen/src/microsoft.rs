@@ -1,6 +1,5 @@
-use abol_core::{attribute::FromRadiusAttribute, attribute::ToRadiusAttribute, packet::Packet};
+use abol_core::{attribute::ToRadiusAttribute, packet::Packet};
 use std::net::{Ipv4Addr, Ipv6Addr};
-use std::time::SystemTime;
 pub const VENDOR_MICROSOFT: u32 = 311u32;
 pub const MS_CHAP_RESPONSE_TYPE: u8 = 1u8;
 pub const MS_CHAP_ERROR_TYPE: u8 = 2u8;
@@ -624,7 +623,7 @@ impl MicrosoftExt for Packet {
         self.get_attribute_as::<u32>(MS_MPPE_ENCRYPTION_TYPE_TYPE)
     }
     fn set_ms_mppe_encryption_type(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(MS_MPPE_ENCRYPTION_TYPE_TYPE, wire_val);
     }
     fn get_ms_mppe_encryption_types(&self) -> Option<MsMppeEncryptionTypes> {
@@ -639,7 +638,7 @@ impl MicrosoftExt for Packet {
         self.get_attribute_as::<u32>(MS_RAS_VENDOR_TYPE)
     }
     fn set_ms_ras_vendor(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(MS_RAS_VENDOR_TYPE, wire_val);
     }
     fn get_ms_chap_domain(&self) -> Option<String> {
@@ -678,14 +677,14 @@ impl MicrosoftExt for Packet {
         self.get_attribute_as::<u32>(MS_LINK_UTILIZATION_THRESHOLD_TYPE)
     }
     fn set_ms_link_utilization_threshold(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(MS_LINK_UTILIZATION_THRESHOLD_TYPE, wire_val);
     }
     fn get_ms_link_drop_time_limit(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(MS_LINK_DROP_TIME_LIMIT_TYPE)
     }
     fn set_ms_link_drop_time_limit(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(MS_LINK_DROP_TIME_LIMIT_TYPE, wire_val);
     }
     fn get_ms_mppe_send_key(&self) -> Option<Vec<u8>> {
@@ -785,28 +784,28 @@ impl MicrosoftExt for Packet {
         self.get_attribute_as::<Ipv4Addr>(MS_PRIMARY_DNS_SERVER_TYPE)
     }
     fn set_ms_primary_dns_server(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(MS_PRIMARY_DNS_SERVER_TYPE, wire_val);
     }
     fn get_ms_secondary_dns_server(&self) -> Option<Ipv4Addr> {
         self.get_attribute_as::<Ipv4Addr>(MS_SECONDARY_DNS_SERVER_TYPE)
     }
     fn set_ms_secondary_dns_server(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(MS_SECONDARY_DNS_SERVER_TYPE, wire_val);
     }
     fn get_ms_primary_nbns_server(&self) -> Option<Ipv4Addr> {
         self.get_attribute_as::<Ipv4Addr>(MS_PRIMARY_NBNS_SERVER_TYPE)
     }
     fn set_ms_primary_nbns_server(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(MS_PRIMARY_NBNS_SERVER_TYPE, wire_val);
     }
     fn get_ms_secondary_nbns_server(&self) -> Option<Ipv4Addr> {
         self.get_attribute_as::<Ipv4Addr>(MS_SECONDARY_NBNS_SERVER_TYPE)
     }
     fn set_ms_secondary_nbns_server(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(MS_SECONDARY_NBNS_SERVER_TYPE, wire_val);
     }
     fn get_ms_ras_client_name(&self) -> Option<String> {
@@ -834,7 +833,7 @@ impl MicrosoftExt for Packet {
         self.get_attribute_as::<u32>(MS_QUARANTINE_SESSION_TIMEOUT_TYPE)
     }
     fn set_ms_quarantine_session_timeout(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(MS_QUARANTINE_SESSION_TIMEOUT_TYPE, wire_val);
     }
     fn get_ms_user_security_identity(&self) -> Option<String> {
@@ -878,7 +877,7 @@ impl MicrosoftExt for Packet {
         self.get_attribute_as::<u32>(MS_QUARANTINE_GRACE_TIME_TYPE)
     }
     fn set_ms_quarantine_grace_time(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(MS_QUARANTINE_GRACE_TIME_TYPE, wire_val);
     }
     fn get_ms_network_access_server_type(&self) -> Option<MsNetworkAccessServerType> {
@@ -988,21 +987,21 @@ impl MicrosoftExt for Packet {
         self.get_attribute_as::<Ipv4Addr>(MS_USER_IPV4_ADDRESS_TYPE)
     }
     fn set_ms_user_ipv4_address(&mut self, value: Ipv4Addr) {
-        let wire_val: Ipv4Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv4Addr>(MS_USER_IPV4_ADDRESS_TYPE, wire_val);
     }
     fn get_ms_user_ipv6_address(&self) -> Option<Ipv6Addr> {
         self.get_attribute_as::<Ipv6Addr>(MS_USER_IPV6_ADDRESS_TYPE)
     }
     fn set_ms_user_ipv6_address(&mut self, value: Ipv6Addr) {
-        let wire_val: Ipv6Addr = value.into();
+        let wire_val = value;
         self.set_attribute_as::<Ipv6Addr>(MS_USER_IPV6_ADDRESS_TYPE, wire_val);
     }
     fn get_ms_tsg_device_redirection(&self) -> Option<u32> {
         self.get_attribute_as::<u32>(MS_TSG_DEVICE_REDIRECTION_TYPE)
     }
     fn set_ms_tsg_device_redirection(&mut self, value: u32) {
-        let wire_val: u32 = value.into();
+        let wire_val = value;
         self.set_attribute_as::<u32>(MS_TSG_DEVICE_REDIRECTION_TYPE, wire_val);
     }
 }

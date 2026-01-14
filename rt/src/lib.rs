@@ -1,10 +1,47 @@
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-mod io;
+use std::net::SocketAddr;
+
+use async_trait::async_trait;
+
+use crate::net::AsyncUdpSocket;
 pub mod net;
 pub mod timer;
+/// A trait defining the asynchronous execution and networking environment.
+///
+/// This trait abstracts over different async runtimes (e.g., Tokio, Smol),
+/// allowing the server logic to remain independent of the underlying event loop.
+///
+/// Implementers must ensure that both the socket and executor types are
+/// compatible with the chosen async reactor.
+#[async_trait]
+pub trait Runtime: Send + Sync + 'static {
+    /// The asynchronous UDP socket type associated with this runtime.
+    type Socket: AsyncUdpSocket;
 
+    /// The task executor used to spawn background futures.
+    type Executor: Executor;
+
+    /// Returns a reference to the runtime's task executor.
+    ///
+    /// This is used by the server to spawn concurrent packet-handling tasks.
+    fn executor(&self) -> &Self::Executor;
+
+    /// Binds a new asynchronous UDP socket to the specified address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`std::io::Result`] if the socket cannot be bound,
+    /// typically due to the address being in use or invalid permissions.
+    async fn bind(&self, addr: SocketAddr) -> std::io::Result<Self::Socket>;
+}
+pub trait Executor {
+    /// Place the future into the executor to be run.
+    fn execute<Fut>(&self, fut: Fut)
+    where
+        Fut: std::future::Future<Output = ()> + Send + 'static;
+}
 pub struct YieldNow {
     yielded: bool,
 }
@@ -30,42 +67,5 @@ impl Future for YieldNow {
             cx.waker().wake_by_ref();
             Poll::Pending
         }
-    }
-}
-
-// futures::future::
-
-pub enum Executor {
-    #[cfg(feature = "tokio")]
-    TokioExecutor,
-    #[cfg(feature = "smol")]
-    SmolExecutor,
-}
-
-impl Executor {
-    #[cfg(feature = "tokio")]
-    pub fn execute(future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
-        tokio::spawn(future);
-    }
-    #[cfg(feature = "smol")]
-    pub fn execute(future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
-        smol::spawn(future);
-    }
-}
-
-#[cfg(feature = "tokio")]
-pub struct TokioExecutor;
-
-#[cfg(feature = "smol")]
-pub struct SmolExecutor;
-
-pub fn get_executor() -> Executor {
-    #[cfg(feature = "tokio")]
-    {
-        Executor::TokioExecutor
-    }
-    #[cfg(feature = "smol")]
-    {
-        Executor::SmolExecutor
     }
 }

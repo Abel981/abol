@@ -14,6 +14,7 @@ pub mod rfc2866;
 pub mod rfc2869;
 pub mod rfc3576;
 pub mod rfc6911;
+pub mod wispr;
 
 /// A code generator that transforms RADIUS dictionary definitions into type-safe Rust traits.
 ///
@@ -67,13 +68,14 @@ impl Generator {
         }
 
         // Encryption: Only specific flags (User-Password/Tunnel) supported
-        if let Some(enc) = attr.encrypt {
-            if enc != 1 && enc != 2 {
-                return Err(format!(
-                    "Unsupported encryption type {} on {}",
-                    enc, attr.name
-                ));
-            }
+        if let Some(enc) = attr.encrypt
+            && enc != 1
+            && enc != 2
+        {
+            return Err(format!(
+                "Unsupported encryption type {} on {}",
+                enc, attr.name
+            ));
         }
 
         // Concat: Strict rules (no encryption/tag/size allowed with concat)
@@ -92,7 +94,7 @@ impl Generator {
         Ok(())
     }
     fn format_code(&self, content: &str) -> String {
-        let mut child = Command::new("rustfmt")
+        let child = Command::new("rustfmt")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -213,22 +215,25 @@ impl Generator {
         }
 
         // 1. Map Dictionary Type to Rust "Wire" Types
-        let (wire_type, user_get_type, user_set_type) = match attr.attr_type {
+        let (wire_type, user_get_type, user_set_type, needs_into) = match attr.attr_type {
             AttributeType::String => (
                 quote! { String },
                 quote! { String },
                 quote! { impl Into<String> },
+                true,
             ),
-            AttributeType::Integer => (quote! { u32 }, quote! { u32 }, quote! { u32 }),
+            AttributeType::Integer => (quote! { u32 }, quote! { u32 }, quote! { u32 }, false),
             AttributeType::IpAddr => (
                 quote! { Ipv4Addr },
                 quote! { Ipv4Addr },
                 quote! { Ipv4Addr },
+                false,
             ),
             AttributeType::Ipv6Addr => (
                 quote! { Ipv6Addr },
                 quote! { Ipv6Addr },
                 quote! { Ipv6Addr },
+                false,
             ),
             AttributeType::Octets
             | AttributeType::Ether
@@ -237,21 +242,26 @@ impl Generator {
                 quote! { Vec<u8> },
                 quote! { Vec<u8> },
                 quote! { impl Into<Vec<u8>> },
+                true, // Needs .into()
             ),
             AttributeType::Date => (
                 quote! { SystemTime },
                 quote! { SystemTime },
                 quote! { SystemTime },
+                false,
             ),
-            AttributeType::Byte => (quote! { u8 }, quote! { u8 }, quote! { u8 }),
-            AttributeType::Short => (quote! { u16 }, quote! { u16 }, quote! { u16 }),
-            AttributeType::Signed => (quote! { i32 }, quote! { i32 }, quote! { i32 }),
-            AttributeType::Tlv => (quote! { Tlv }, quote! { Tlv }, quote! { Tlv }),
-            AttributeType::Ipv4Prefix | AttributeType::Ipv6Prefix => {
-                (quote! { Vec<u8> }, quote! { Vec<u8> }, quote! { Vec<u8> })
-            }
+            AttributeType::Byte => (quote! { u8 }, quote! { u8 }, quote! { u8 }, false),
+            AttributeType::Short => (quote! { u16 }, quote! { u16 }, quote! { u16 }, false),
+            AttributeType::Signed => (quote! { i32 }, quote! { i32 }, quote! { i32 }, false),
+            AttributeType::Tlv => (quote! { Tlv }, quote! { Tlv }, quote! { Tlv }, false),
+            AttributeType::Ipv4Prefix | AttributeType::Ipv6Prefix => (
+                quote! { Vec<u8> },
+                quote! { Vec<u8> },
+                quote! { Vec<u8> },
+                false,
+            ),
             AttributeType::Ifid | AttributeType::InterfaceId => {
-                (quote! { u64 }, quote! { u64 }, quote! { u64 })
+                (quote! { u64 }, quote! { u64 }, quote! { u64 }, false)
             }
             _ => return,
         };
@@ -262,10 +272,10 @@ impl Generator {
         let is_external = self.external_attributes.contains_key(&attr.name);
         let const_type_ident = format_ident!("{}_TYPE", normalized_name.to_shouty_snake_case());
         // 2. Determine Final Method Types (Override if Enum exists)
-        let (final_get_type, final_set_type) = if has_values {
-            (quote! { #enum_name }, quote! { #enum_name })
+        let (final_get_type, final_set_type, final_needs_into) = if has_values {
+            (quote! { #enum_name }, quote! { #enum_name }, true)
         } else {
-            (user_get_type, user_set_type)
+            (user_get_type, user_set_type, needs_into)
         };
 
         // 3. Generate Type Constants (Always generated)
@@ -289,10 +299,6 @@ impl Generator {
                     from_arms.push(quote! { #val_lit => Self::#variant_ident });
                 }
                 to_arms.push(quote! { #enum_name::#variant_ident => #val_lit });
-
-                // todo if performance matters use this Also keep the global constant for backward compatibility
-                // let val_const_ident = format_ident!("{}_{}", attr.name.to_shouty_snake_case(), val.name.to_shouty_snake_case());
-                // tokens.extend(quote! { pub const #val_const_ident: u32 = #val_lit; });
             }
 
             tokens.extend(quote! {
@@ -356,47 +362,51 @@ impl Generator {
             format_ident!("UNUSED")
         };
 
-        let body_get = if has_values {
-            if is_vsa {
-                quote! { self.get_vsa_attribute_as::<u32>(#v_const, #const_type_ident).map(#enum_name::from) }
-            } else {
-                quote! { self.get_attribute_as::<u32>(#const_type_ident).map(#enum_name::from) }
-            }
+        let (method, args) = if is_vsa {
+            (
+                quote!(get_vsa_attribute_as),
+                quote!(#v_const, #const_type_ident),
+            )
         } else {
-            if is_vsa {
-                quote! { self.get_vsa_attribute_as::<#wire_type>(#v_const, #const_type_ident) }
-            } else {
-                quote! { self.get_attribute_as::<#wire_type>(#const_type_ident) }
-            }
+            (quote!(get_attribute_as), quote!(#const_type_ident))
         };
 
-        let body_set = if has_values {
-            if is_vsa {
-                quote! {
-                    let wire_val: u32 = value.into();
-                    #size_validation
-                    self.set_vsa_attribute_as::<u32>(#v_const, #const_type_ident, wire_val);
-                }
-            } else {
-                quote! {
-                    let wire_val: u32 = value.into();
-                    #size_validation
-                    self.set_attribute_as::<u32>(#const_type_ident, wire_val);
-                }
+        let (target_type, map_clause) = if has_values {
+            (quote!(u32), quote!(.map(#enum_name::from)))
+        } else {
+            (quote!(#wire_type), quote!())
+        };
+
+        let body_get = quote! {
+            self.#method::<#target_type>(#args) #map_clause
+        };
+
+        let (set_method, set_args) = if is_vsa {
+            (
+                quote!(set_vsa_attribute_as),
+                quote!(#v_const, #const_type_ident),
+            )
+        } else {
+            (quote!(set_attribute_as), quote!(#const_type_ident))
+        };
+
+        let value_type = if has_values {
+            quote!(u32)
+        } else {
+            quote!(#wire_type)
+        };
+
+        let body_set = if final_needs_into {
+            quote! {
+                let wire_val: #value_type = value.into();
+                #size_validation
+                self.#set_method::<#value_type>(#set_args, wire_val);
             }
         } else {
-            if is_vsa {
-                quote! {
-                    let wire_val: #wire_type = value.into();
-                    #size_validation
-                    self.set_vsa_attribute_as::<#wire_type>(#v_const, #const_type_ident, wire_val);
-                }
-            } else {
-                quote! {
-                    let wire_val: #wire_type = value.into();
-                    #size_validation
-                    self.set_attribute_as::<#wire_type>(#const_type_ident, wire_val);
-                }
+            quote! {
+                let wire_val = value; // Direct assignment, no .into()
+                #size_validation
+                self.#set_method::<#value_type>(#set_args, wire_val);
             }
         };
 

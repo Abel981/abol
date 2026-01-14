@@ -24,7 +24,6 @@ impl Dictionary {
     /// * Vendor IDs or names are inconsistent between dictionaries.
     /// * Attributes within a specific vendor collide.
     pub fn merge(d1: &Dictionary, d2: &Dictionary) -> Result<Dictionary, DictionaryError> {
-        // 1. Validate top-level attribute conflicts
         for attr in &d2.attributes {
             if d1.attributes.iter().any(|a| a.name == attr.name) {
                 return Err(DictionaryError::Conflict(format!(
@@ -40,7 +39,6 @@ impl Dictionary {
             }
         }
 
-        // 2. Validate Vendor conflicts
         for vendor in &d2.vendors {
             let existing_by_name = d1.vendors.iter().find(|v| v.name == vendor.name);
             let existing_by_code = d1.vendors.iter().find(|v| v.code == vendor.code);
@@ -72,7 +70,6 @@ impl Dictionary {
             }
         }
 
-        // 3. Perform the merge
         let mut new_dict = d1.clone();
 
         // Append top-level attributes and values
@@ -149,20 +146,15 @@ impl fmt::Display for Oid {
     }
 }
 /// Flags representing size constraints on attribute values.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub enum SizeFlag {
     /// No constraint (default).
+    #[default]
     Any,
     /// Value must be exactly N bytes.
     Exact(u32),
     /// Value must be between N and M bytes (inclusive).
     Range(u32, u32),
-}
-
-impl Default for SizeFlag {
-    fn default() -> Self {
-        SizeFlag::Any
-    }
 }
 
 impl SizeFlag {

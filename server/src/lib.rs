@@ -1,75 +1,83 @@
 use abol_core::packet::{MAX_PACKET_SIZE, Packet};
-use abol_core::{HandlerResult, Request, Response};
+use abol_core::{Cidr, Request, Response};
 use anyhow::{Context, anyhow};
-use async_trait::async_trait;
+use bytes::Bytes;
+use dashmap::DashSet;
 use moka::future::Cache;
-use rt::net::UdpSocket;
-use rt::{Executor, YieldNow};
-use std::collections::HashSet;
+use rt::net::AsyncUdpSocket;
+use rt::{Executor, Runtime, YieldNow};
+use std::error::Error;
 use std::future::Future;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
 use std::task::Poll;
 
-type ShutdownFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-pub struct Cidr {
-    pub ip: IpAddr,
-    pub prefix: u8,
-}
-
-impl Cidr {
-    /// Checks if a given IP address falls within this CIDR range
-    pub fn contains(&self, other: &IpAddr) -> bool {
-        match (self.ip, other) {
-            (IpAddr::V4(net), IpAddr::V4(ip)) => {
-                let mask = u32::MAX.checked_shl(32 - self.prefix as u32).unwrap_or(0);
-                u32::from(net) & mask == u32::from(*ip) & mask
-            }
-            (IpAddr::V6(net), IpAddr::V6(ip)) => {
-                let mask = u128::MAX.checked_shl(128 - self.prefix as u32).unwrap_or(0);
-                u128::from(net) & mask == u128::from(*ip) & mask
-            }
-            _ => false,
-        }
-    }
-}
+type HandlerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
-struct RequestKey {
+pub(crate) struct RequestKey {
     addr: SocketAddr,
     identifier: u8,
 }
-#[async_trait]
-pub trait SecretProvider: Send + Sync + 'static {
-    async fn get_secret(&self, client_ip: IpAddr) -> Option<Arc<[u8]>>;
+
+/// A provider that maps incoming client IP ranges to their shared secrets.
+///
+/// In the RADIUS protocol, the server identifies which password (shared secret) 
+/// to use based on the source IP address of the Network Access Server (NAS).
+///
+/// Implement this trait to define how your server looks up these secrets—whether 
+/// from a static list, a configuration file, or a database.
+pub trait SecretSource: Send + Sync + 'static {
+    /// Retrieves a complete list of IP networks and their associated secrets.
+    ///
+    /// The server's secret manager will call this periodically to refresh its 
+    /// internal cache. 
+    /// 
+    /// ### Returns
+    /// A list of tuples where:
+    /// * `Cidr` - The IP range (e.g., 192.168.1.0/24) allowed to connect.
+    /// * `Vec<u8>` - The shared secret used to sign and encrypt packets for that range.
+    fn get_all_secrets(
+        &self,
+    ) -> impl Future<Output = Result<Vec<(Cidr, Vec<u8>)>, BoxError>> + Send;
 }
 
-#[async_trait]
-impl SecretProvider for SecretManager {
-    async fn get_secret(&self, client_ip: IpAddr) -> Option<Arc<[u8]>> {
-        self.get_secret(client_ip).await
+pub trait SecretSourceExt: Send + Sync + 'static {
+    fn get_all_secrets_boxed(&self) -> BoxFuture<'_, Result<Vec<(Cidr, Vec<u8>)>, BoxError>>;
+}
+
+impl<T: SecretSource> SecretSourceExt for T {
+    fn get_all_secrets_boxed(&self) -> BoxFuture<'_, Result<Vec<(Cidr, Vec<u8>)>, BoxError>> {
+        Box::pin(self.get_all_secrets())
     }
 }
 
-#[async_trait]
-pub trait SecretSource: Send + Sync + 'static {
-    // Returns a map of CIDR -> Secret.
-    // Fetching the whole list is often more efficient for RADIUS than one-by-one.
-    async fn get_all_secrets(
-        &self,
-    ) -> Result<Vec<(Cidr, Vec<u8>)>, Box<dyn std::error::Error + Send + Sync>>;
+pub trait SecretProvider: Send + Sync + 'static {
+    fn get_secret(&self, client_ip: IpAddr) -> impl Future<Output = Option<Arc<[u8]>>> + Send;
+}
+
+pub trait SecretProviderExt: Send + Sync + 'static {
+    fn get_secret_boxed(&self, client_ip: IpAddr) -> BoxFuture<'_, Option<Arc<[u8]>>>;
+}
+
+impl<T: SecretProvider> SecretProviderExt for T {
+    fn get_secret_boxed(&self, client_ip: IpAddr) -> BoxFuture<'_, Option<Arc<[u8]>>> {
+        Box::pin(self.get_secret(client_ip))
+    }
 }
 
 pub struct SecretManager {
     cache: Cache<(), Arc<Vec<(Cidr, Arc<[u8]>)>>>,
-    source: Arc<dyn SecretSource>,
+    source: Arc<dyn SecretSourceExt>,
 }
 
 impl SecretManager {
-    pub fn new(source: Arc<dyn SecretSource>, cache_ttl_secs: u64) -> Self {
+    pub fn new(source: Arc<dyn SecretSourceExt>, cache_ttl_secs: u64) -> Self {
         let cache = Cache::builder()
             .max_capacity(1)
             .time_to_live(std::time::Duration::from_secs(cache_ttl_secs))
@@ -77,7 +85,7 @@ impl SecretManager {
         Self { cache, source }
     }
 
-    pub async fn get_secret(&self, client_ip: IpAddr) -> Option<Arc<[u8]>> {
+    async fn get_secret_internal(&self, client_ip: IpAddr) -> Option<Arc<[u8]>> {
         let table = self
             .cache
             .get_with((), async { self.reload().await.unwrap_or_default() })
@@ -86,13 +94,11 @@ impl SecretManager {
         table
             .iter()
             .find(|(cidr, _)| cidr.contains(&client_ip))
-            .map(|(_, secret)| Arc::from(secret.clone()))
+            .map(|(_, secret)| secret.clone())
     }
 
-    async fn reload(
-        &self,
-    ) -> Result<Arc<Vec<(Cidr, Arc<[u8]>)>>, Box<dyn std::error::Error + Send + Sync>> {
-        let entries = self.source.get_all_secrets().await?;
+    async fn reload(&self) -> Result<Arc<Vec<(Cidr, Arc<[u8]>)>>, BoxError> {
+        let entries = self.source.get_all_secrets_boxed().await?;
         let arc_entries = entries
             .into_iter()
             .map(|(cidr, secret)| (cidr, Arc::from(secret)))
@@ -101,26 +107,21 @@ impl SecretManager {
     }
 }
 
-// pub struct StaticSecret(Vec<u8>);
-// impl SecretProvider for StaticSecret {
-//     fn get_secret(&self, _addr: std::net::SocketAddr) -> Option<Arc<[u8]>> {
-//         Some(Arc::from(self.0.clone()))
-//     }
-// }
-// impl StaticSecret {
-//     pub fn new(secret: Vec<u8>) -> Self {
-//         StaticSecret(secret)
-//     }
-// }
+impl SecretProvider for SecretManager {
+    async fn get_secret(&self, client_ip: IpAddr) -> Option<Arc<[u8]>> {
+        self.get_secret_internal(client_ip).await
+    }
+}
 
-#[async_trait]
 pub trait Handler: Send + Sync + 'static {
-    async fn handle(&self, request: Request) -> HandlerResult<Response>;
+    fn handle(
+        &self,
+        request: Request,
+    ) -> impl std::future::Future<Output = HandlerResult<Response>> + Send;
 }
 
 pub struct HandlerFn<F>(pub F);
 
-#[async_trait]
 impl<F, Fut> Handler for HandlerFn<F>
 where
     F: Fn(Request) -> Fut + Send + Sync + 'static,
@@ -131,81 +132,99 @@ where
     }
 }
 
-pub struct ServerContext<S, H>
+pub(crate) struct ServerContext<S, H>
 where
     S: SecretProvider,
     H: Handler,
 {
     pub secret_provider: Arc<S>,
     pub handler: Arc<H>,
-    pub undergoing_requests: Arc<RwLock<HashSet<RequestKey>>>,
+    pub undergoing_requests: Arc<DashSet<RequestKey>>,
     pub active_tasks: Arc<AtomicUsize>,
 }
 
-pub struct Server<S, H>
+pub struct Server<S, H, R>
 where
     S: SecretProvider,
     H: Handler,
+    R: Runtime,
 {
-    addr: String,
+    runtime: Arc<R>,
+    socket: Arc<R::Socket>,
     secret_provider: Arc<S>,
     handler: Arc<H>,
-    undergoing_requests: Arc<RwLock<HashSet<RequestKey>>>,
+    undergoing_requests: Arc<DashSet<RequestKey>>,
     active_tasks: Arc<AtomicUsize>,
-    shutdown_signal: Option<ShutdownFuture>,
+    shutdown_signal: Option<BoxFuture<'static, ()>>,
 }
 
-impl<S, H> Server<S, H>
+impl<S, H, R> Server<S, H, R>
 where
-    S: SecretProvider,
-    H: Handler,
+    S: SecretProvider + 'static,
+    H: Handler + 'static,
+    R: Runtime + 'static,
 {
-    pub fn new(addr: impl Into<String>, secret_provider: S, handler: H) -> Self {
+    pub fn new(runtime: R, socket: R::Socket, secret_provider: S, handler: H) -> Self {
         Self {
-            addr: addr.into(),
+            runtime: Arc::new(runtime),
+            socket: Arc::new(socket),
             secret_provider: Arc::new(secret_provider),
             handler: Arc::new(handler),
-            undergoing_requests: Arc::new(RwLock::new(HashSet::new())),
+            undergoing_requests: Arc::new(DashSet::new()),
             active_tasks: Arc::new(AtomicUsize::new(0)),
             shutdown_signal: None,
         }
     }
 
+    pub fn local_addr(&self) -> anyhow::Result<SocketAddr> {
+        self.socket.local_addr().map_err(|e| anyhow!(e))
+    }
+
     pub fn with_graceful_shutdown<F>(mut self, shutdown: F) -> Self
     where
-        F: Future<Output = ()> + Send + 'static,
+        F: std::future::Future<Output = ()> + Send + 'static,
     {
         self.shutdown_signal = Some(Box::pin(shutdown));
         self
     }
 
+    /// Starts the RADIUS server and begins listening for incoming packets.
+///
+/// This is the main entry point of the server. It will run indefinitely until:
+/// 1. An unrecoverable network error occurs.
+/// 2. The `shutdown_signal` (if provided) is triggered.
+///
+/// ### Graceful Shutdown
+/// When a shutdown signal is received, the server stops accepting new packets 
+/// immediately but waits for all currently processing requests (active tasks) 
+/// to finish before returning. This ensures no client requests are "dropped" 
+/// mid-processing.
+///
+/// # Errors
+/// Returns an error if the server fails to retrieve the local address or if
+/// the internal run loop encounters a fatal exception.
     pub async fn listen_and_serve(self) -> anyhow::Result<()> {
-        let socket = Arc::new(
-            UdpSocket::bind(&self.addr)
-                .await
-                .with_context(|| format!("Failed to bind UDP socket to {}", self.addr))?,
-        );
-
-        let local_addr = socket.local_addr()?.to_string();
-
+        let local_addr_str = self.socket.local_addr()?.to_string();
         let context = Arc::new(ServerContext {
-            secret_provider: self.secret_provider,
-            handler: self.handler,
-            undergoing_requests: self.undergoing_requests,
-            active_tasks: self.active_tasks,
+            secret_provider: Arc::clone(&self.secret_provider),
+            handler: Arc::clone(&self.handler),
+            undergoing_requests: Arc::clone(&self.undergoing_requests),
+            active_tasks: Arc::clone(&self.active_tasks),
         });
 
         let mut shutdown = self
             .shutdown_signal
             .unwrap_or_else(|| Box::pin(std::future::pending()));
+
         let mut run_loop_fut = Box::pin(Self::run_loop(
             Arc::clone(&context),
-            Arc::clone(&socket),
-            local_addr,
+            Arc::clone(&self.socket),
+            Arc::clone(&self.runtime),
+            local_addr_str,
         ));
 
         let result = std::future::poll_fn(|cx| {
-            if let Poll::Ready(_) = shutdown.as_mut().poll(cx) {
+            if shutdown.as_mut().poll(cx).is_ready() {
                 return Poll::Ready(Ok(()));
             }
             if let Poll::Ready(res) = run_loop_fut.as_mut().poll(cx) {
@@ -215,17 +234,16 @@ where
         })
         .await;
 
-        // Wait for background tasks to drain
         while context.active_tasks.load(Ordering::SeqCst) > 0 {
             YieldNow::new().await;
         }
-
         result
     }
 
     async fn run_loop(
         context: Arc<ServerContext<S, H>>,
-        socket: Arc<UdpSocket>,
+        socket: Arc<R::Socket>,
+        runtime: Arc<R>,
         local_addr: String,
     ) -> anyhow::Result<()> {
         loop {
@@ -233,18 +251,17 @@ where
             let (len, peer_addr) = socket
                 .recv_from(&mut buf)
                 .await
-                .context("Failed to receive data")?;
+                .context("Failed to receive")?;
 
-            let data = buf[..len].to_vec();
+            let data = Bytes::copy_from_slice(&buf[..len]);
             let ctx = Arc::clone(&context);
             let sock = Arc::clone(&socket);
             let l_addr = local_addr.clone();
+            let rt = Arc::clone(&runtime);
 
-            // Increment before spawning
             ctx.active_tasks.fetch_add(1, Ordering::SeqCst);
 
-            Executor::execute(Box::pin(async move {
-                // TaskGuard now takes the whole context Arc to manage the count
+            rt.executor().execute(Box::pin(async move {
                 let _guard = TaskGuard::new(Arc::clone(&ctx));
 
                 let secret = match ctx.secret_provider.get_secret(peer_addr.ip()).await {
@@ -252,33 +269,21 @@ where
                     None => return,
                 };
 
-                let packet = match Packet::parse_packet(&data, Arc::clone(&secret)) {
+                let packet = match Packet::parse_packet(data, Arc::clone(&secret)) {
                     Ok(p) => p,
-                    Err(e) => {
-                        eprintln!("Failed to parse packet from {}: {:?}", peer_addr, e);
-                        return;
-                    }
+                    Err(_) => return,
                 };
 
                 let key = RequestKey {
                     addr: peer_addr,
                     identifier: packet.identifier,
                 };
-
-                {
-                    let mut ongoing = ctx.undergoing_requests.write().unwrap();
-                    if !ongoing.insert(key.clone()) {
-                        return;
-                    }
+                if !ctx.undergoing_requests.insert(key.clone()) {
+                    return;
                 }
 
-                if let Err(e) = Self::process(&ctx, packet, l_addr, peer_addr, sock).await {
-                    eprintln!("Error processing request from {}: {:?}", peer_addr, e);
-                }
-
-                if let Ok(mut ongoing) = ctx.undergoing_requests.write() {
-                    ongoing.remove(&key);
-                }
+                let _ = Self::process(&ctx, packet, l_addr, peer_addr, sock).await;
+                ctx.undergoing_requests.remove(&key);
             }));
         }
     }
@@ -286,10 +291,9 @@ where
     async fn process(
         ctx: &ServerContext<S, H>,
         packet: Packet,
-
         local_addr: String,
         peer_addr: SocketAddr,
-        socket: Arc<UdpSocket>,
+        socket: Arc<R::Socket>,
     ) -> anyhow::Result<()> {
         if !packet.verify_request() {
             return Err(anyhow!("Invalid authenticator from {}", peer_addr));
@@ -308,6 +312,7 @@ where
             .map_err(|e| anyhow!("Handler error: {:?}", e))?;
 
         let encoded = response.packet.encode().context("Encoding failed")?;
+
         socket
             .send_to(&encoded, peer_addr)
             .await
@@ -316,8 +321,6 @@ where
         Ok(())
     }
 }
-
-/// Guard to ensure active_tasks is decremented even if the task panics or returns early.
 struct TaskGuard<S, H>
 where
     S: SecretProvider,

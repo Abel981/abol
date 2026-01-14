@@ -1,0 +1,30 @@
+name: Fuzz Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust Nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+
+      - name: Cache Fuzz Corpus
+        uses: actions/cache@v3
+        with:
+          path: fuzz/corpus
+          key: ${{ runner.os }}-fuzz-corpus-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-fuzz-corpus-
+
+      - name: Run Fuzzer
+        run: cargo +nightly fuzz run packet_parser -- -max_total_time=300
