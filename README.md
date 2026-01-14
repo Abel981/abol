@@ -9,20 +9,19 @@
   <b>A high-performance, asynchronous, RADIUS implementation for Rust</b>
 </p>
 
-<p >
-  Type-safe • Runtime-agnostic • Dictionary-driven
+<p>
+  <b>Type-safe • Runtime-agnostic • Dictionary-driven • Memory-safe</b>
 </p>
 
 
 <p>
 🚀 Quick Start
 
-``` toml
+```toml
 [dependencies]
 abol = "0.1.0"
-tokio = { version = "1", features = ["full"] }
-# or
-# smol = "1.3"
+abol-util = { version = "0.1.0", features = ["tokio"] }
+tokio = { version = "1.0", features = ["full"] }
 ```
 
 </p>

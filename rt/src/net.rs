@@ -13,4 +13,3 @@ pub trait AsyncUdpSocket: Send + Sync {
     /// Receives data from the socket, returning the number of bytes and the source address.
     async fn recv_from(&self, buf: &mut [u8]) -> Result<(usize, SocketAddr)>;
 }
-

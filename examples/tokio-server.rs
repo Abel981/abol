@@ -2,15 +2,15 @@
 
 use abol::codegen::rfc2865::Rfc2865Ext;
 use abol::core::{Cidr, Code, Request, Response};
+use abol::rt::Runtime;
 use abol::server::{HandlerFn, SecretManager, SecretSource, Server};
 use abol_util::rt::tokio::TokioRuntime;
-use rt::Runtime;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 /// A simple "Global Password" provider for your RADIUS server.
-/// 
+///
 /// Use this if you want every single client (NAS) to use the same shared secret,
 /// regardless of their IP address. It is the easiest way to get started.
 pub struct StaticSecretSource {
@@ -23,8 +23,7 @@ impl SecretSource for StaticSecretSource {
     async fn get_all_secrets(
         &self,
     ) -> Result<Vec<(Cidr, Vec<u8>)>, Box<dyn std::error::Error + Send + Sync>> {
-        
-        // Define a "Catch-All" range. 
+        // Define a "Catch-All" range.
         // 0.0.0.0 with a prefix of 0 matches ANY incoming IPv4 address.
         let cidr = Cidr {
             ip: "0.0.0.0".parse()?,
@@ -70,12 +69,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = TokioRuntime::new();
     let socket = runtime.bind(addr).await?;
 
-    println!("RADIUS server (Tokio) listening on {}", addr);
-
+    
     // 4. Create and start the server
     let server = Server::new(runtime, socket, secret_manager, handler);
-
+    
     server.listen_and_serve().await?;
+    println!("RADIUS server (Tokio) listening on {}", addr);
 
     Ok(())
 }

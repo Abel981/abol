@@ -60,7 +60,7 @@ zeroize = { workspace = true }
 dashmap = { workspace = true }
 
 [dev-dependencies]
-tokio = { version = "1"}
+tokio = { version = "1", features = ["full"]}
 smol = {version = "2"}
 abol-util = {path = "./abol-util"}
 [features]

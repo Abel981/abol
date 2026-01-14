@@ -44,10 +44,17 @@ pub struct Packet {
 pub enum PacketParseError {
     #[error("Packet not at least 20 bytes long")]
     TooShortHeader,
-    #[error("unknown packet code")]
-    UnknownPacketCode,
-    #[error("Invalid packet length: {0}")]
+
+    #[error("Unknown packet code: {0}")]
+    UnknownPacketCode(u8),
+
+    #[error("Invalid packet length in header: {0}")]
     InvalidLength(usize),
+
+    /// This handles the case the fuzzer found: header says 30 bytes, but we only got 27.
+    #[error("Buffer too short: header expects {expected} bytes, but only received {actual}")]
+    BufferTooShort { expected: usize, actual: usize },
+
     #[error("Attribute parsing failed: {0}")]
     AttributeError(AttributeParseError),
 }
@@ -77,8 +84,16 @@ impl Packet {
 
         let length = u16::from_be_bytes([b[2], b[3]]) as usize;
 
+        // 1. Validate that the internal length is sensible
         if !(20..=MAX_PACKET_SIZE).contains(&length) {
             return Err(PacketParseError::InvalidLength(length));
+        }
+
+        if b.len() < length {
+            return Err(PacketParseError::BufferTooShort {
+                expected: length,
+                actual: b.len(),
+            });
         }
 
         let code = Code::try_from(b[0])?;
@@ -149,7 +164,7 @@ impl Packet {
                 Ok(b)
             }
 
-            _ => Err(PacketParseError::UnknownPacketCode),
+            _ => Err(PacketParseError::UnknownPacketCode(b[0])),
         }
     }
     pub fn encode_raw(&self) -> Result<Vec<u8>, PacketParseError> {

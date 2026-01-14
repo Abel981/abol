@@ -8,3 +8,7 @@ pub mod core {
 pub mod codegen {
     pub use abol_codegen::*;
 }
+
+pub mod rt {
+    pub use rt::Runtime;
+}

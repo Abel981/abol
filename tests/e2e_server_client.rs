@@ -1,22 +1,21 @@
 #![cfg(feature = "tokio")]
 #![cfg(test)]
 
-
+use bytes::Bytes;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket as TokioUdpSocket;
-use bytes::Bytes;
 
 // 1. IMPORTANT: Import the trait to make .local_addr() work
+use abol_util::rt::tokio::TokioRuntime;
 use rt::net::AsyncUdpSocket;
-use rt::{Runtime,  Executor}; 
-use abol_util::rt::tokio::{TokioRuntime};
+use rt::{Executor, Runtime};
 
 // RADIUS Protocol imports
+use abol_codegen::rfc2865::Rfc2865Ext;
 use abol_core::attribute::Attributes;
 use abol_core::packet::Packet;
-use abol_core::{Code, Request, Response, Cidr};
-use abol_codegen::rfc2865::Rfc2865Ext;
+use abol_core::{Cidr, Code, Request, Response};
 
 // Server crate imports
 use server::{BoxError, HandlerFn, SecretManager, SecretSource, Server};
@@ -26,9 +25,13 @@ struct MySecretProvider;
 
 impl SecretSource for MySecretProvider {
     async fn get_all_secrets(&self) -> Result<Vec<(Cidr, Vec<u8>)>, BoxError> {
-        Ok(vec![
-            (Cidr { ip: "127.0.0.1".parse().unwrap(), prefix: 32 }, b"secret".to_vec()),
-        ])
+        Ok(vec![(
+            Cidr {
+                ip: "127.0.0.1".parse().unwrap(),
+                prefix: 32,
+            },
+            b"secret".to_vec(),
+        )])
     }
 }
 
@@ -37,7 +40,7 @@ async fn test_access_request_e2e() {
     // --- SETUP ---
     let shared_secret: Arc<[u8]> = Arc::from(b"secret".as_slice());
     let secret_manager = SecretManager::new(Arc::new(MySecretProvider), 3600);
-    
+
     let runtime = TokioRuntime::new();
     let addr = "127.0.0.1:0".parse().unwrap();
 
@@ -46,16 +49,20 @@ async fn test_access_request_e2e() {
 
     // 3. Bind the socket using the runtime
     let socket = runtime.bind(addr).await.expect("Failed to bind socket");
-    
+
     // This works now because AsyncUdpSocket is in scope
     let target_addr = socket.local_addr().expect("Failed to get local address");
 
     // Define the handler logic
     let handler = HandlerFn(|request: Request| async move {
         let name = request.packet.get_user_name().unwrap_or_default();
-        let code = if name == "admin" { Code::AccessAccept } else { Code::AccessReject };
-        Ok(Response { 
-            packet: request.packet.create_response(code) 
+        let code = if name == "admin" {
+            Code::AccessAccept
+        } else {
+            Code::AccessReject
+        };
+        Ok(Response {
+            packet: request.packet.create_response(code),
         })
     });
 
@@ -72,7 +79,7 @@ async fn test_access_request_e2e() {
 
     // --- CLIENT: SEND REQUEST ---
     let client_sock = TokioUdpSocket::bind("127.0.0.1:0").await.unwrap();
-    
+
     let mut req_packet = Packet {
         code: Code::AccessRequest,
         identifier: 1,
@@ -92,9 +99,17 @@ async fn test_access_request_e2e() {
         .expect("Test timed out waiting for RADIUS response")
         .expect("Failed to receive data");
 
-    let response = Packet::parse_packet(Bytes::copy_from_slice(&buf[..len]), shared_secret).unwrap();
-    
+    let response =
+        Packet::parse_packet(Bytes::copy_from_slice(&buf[..len]), shared_secret).unwrap();
+
     // --- ASSERTIONS ---
-    assert_eq!(response.code, Code::AccessAccept, "Server should have accepted 'admin' user");
-    assert_eq!(response.identifier, 1, "Response identifier must match request");
+    assert_eq!(
+        response.code,
+        Code::AccessAccept,
+        "Server should have accepted 'admin' user"
+    );
+    assert_eq!(
+        response.identifier, 1,
+        "Response identifier must match request"
+    );
 }

@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 rt = { workspace = true }
 pin-project-lite = "0.2.11"
-tokio = { version = "1", optional = true, default-features = false }
+tokio = { version = "1", optional = true, default-features = false, features = ["net", "rt", "time"] }
 smol = {version = "2", optional = true}
 async-trait = "0.1.88"
 [features]

@@ -27,4 +27,4 @@ jobs:
             ${{ runner.os }}-fuzz-corpus-
 
       - name: Run Fuzzer
-        run: cargo +nightly fuzz run packet_parser -- -max_total_time=300
+        run: cargo +nightly fuzz run fuzz_target_1 -- -max_total_time=300

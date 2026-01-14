@@ -27,17 +27,17 @@ pub(crate) struct RequestKey {
 
 /// A provider that maps incoming client IP ranges to their shared secrets.
 ///
-/// In the RADIUS protocol, the server identifies which password (shared secret) 
+/// In the RADIUS protocol, the server identifies which password (shared secret)
 /// to use based on the source IP address of the Network Access Server (NAS).
 ///
-/// Implement this trait to define how your server looks up these secrets—whether 
+/// Implement this trait to define how your server looks up these secrets—whether
 /// from a static list, a configuration file, or a database.
 pub trait SecretSource: Send + Sync + 'static {
     /// Retrieves a complete list of IP networks and their associated secrets.
     ///
-    /// The server's secret manager will call this periodically to refresh its 
-    /// internal cache. 
-    /// 
+    /// The server's secret manager will call this periodically to refresh its
+    /// internal cache.
+    ///
     /// ### Returns
     /// A list of tuples where:
     /// * `Cidr` - The IP range (e.g., 192.168.1.0/24) allowed to connect.
@@ -189,20 +189,20 @@ where
     }
 
     /// Starts the RADIUS server and begins listening for incoming packets.
-///
-/// This is the main entry point of the server. It will run indefinitely until:
-/// 1. An unrecoverable network error occurs.
-/// 2. The `shutdown_signal` (if provided) is triggered.
-///
-/// ### Graceful Shutdown
-/// When a shutdown signal is received, the server stops accepting new packets 
-/// immediately but waits for all currently processing requests (active tasks) 
-/// to finish before returning. This ensures no client requests are "dropped" 
-/// mid-processing.
-///
-/// # Errors
-/// Returns an error if the server fails to retrieve the local address or if
-/// the internal run loop encounters a fatal exception.
+    ///
+    /// This is the main entry point of the server. It will run indefinitely until:
+    /// 1. An unrecoverable network error occurs.
+    /// 2. The `shutdown_signal` (if provided) is triggered.
+    ///
+    /// ### Graceful Shutdown
+    /// When a shutdown signal is received, the server stops accepting new packets
+    /// immediately but waits for all currently processing requests (active tasks)
+    /// to finish before returning. This ensures no client requests are "dropped"
+    /// mid-processing.
+    ///
+    /// # Errors
+    /// Returns an error if the server fails to retrieve the local address or if
+    /// the internal run loop encounters a fatal exception.
     pub async fn listen_and_serve(self) -> anyhow::Result<()> {
         let local_addr_str = self.socket.local_addr()?.to_string();
         let context = Arc::new(ServerContext {

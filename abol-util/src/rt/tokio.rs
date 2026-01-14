@@ -44,7 +44,6 @@ impl Executor for TokioExecutor {
 }
 
 impl TokioExecutor {
-    /// Create new executor that relies on [`tokio::spawn`] to execute futures.
     pub fn new() -> Self {
         Self {}
     }
