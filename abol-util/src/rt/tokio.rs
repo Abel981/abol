@@ -1,15 +1,6 @@
-use std::{
-    future::Future,
-    io::Result,
-    net::SocketAddr,
-    pin::Pin,
-    task::{Context, Poll},
-    time::{Duration, Instant},
-};
+use std::{io::Result, net::SocketAddr};
 
 use async_trait::async_trait;
-use pin_project_lite::pin_project;
-use rt::timer::Sleepr;
 use rt::{Executor, Runtime, net::AsyncUdpSocket};
 
 /// Future executor that utilises `tokio` threads.
@@ -31,14 +22,6 @@ impl Executor for TokioExecutor {
 impl TokioExecutor {
     pub fn new() -> Self {
         Self {}
-    }
-}
-
-impl Future for TokioSleep {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.project().inner.poll(cx)
     }
 }
 

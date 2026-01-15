@@ -65,6 +65,7 @@ server = { workspace = true }
 tokio = { workspace = true }
 smol = { workspace = true }
 abol-util = { workspace = true }
+bytes = "1.11"
 
 [features]
 tokio = ["abol-util/tokio"]

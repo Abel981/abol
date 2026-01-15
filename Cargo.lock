@@ -9,6 +9,7 @@ dependencies = [
  "abol-codegen",
  "abol-core",
  "abol-util",
+ "bytes",
  "rt",
  "server",
  "smol",
@@ -53,7 +54,6 @@ name = "abol-util"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "pin-project-lite",
  "rt",
  "smol",
  "tokio",

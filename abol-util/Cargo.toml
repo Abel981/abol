@@ -10,8 +10,6 @@ repository = { workspace = true }
 
 [dependencies]
 rt = { workspace = true }
-
-pin-project-lite = "0.2"
 async-trait = "0.1"
 
 tokio = { workspace = true, optional = true }
