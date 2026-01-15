@@ -9,7 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use pin_project_lite::pin_project;
-use rt::timer::{Sleep, Timer};
+use rt::timer::{Sleepr};
 use rt::{Executor, Runtime, net::AsyncUdpSocket};
 
 /// Future executor that utilises `tokio` threads.
@@ -17,20 +17,9 @@ use rt::{Executor, Runtime, net::AsyncUdpSocket};
 #[derive(Default, Debug, Clone)]
 pub struct TokioExecutor {}
 
-/// A Timer that uses the tokio runtime.
-#[non_exhaustive]
-#[derive(Default, Clone, Debug)]
-pub struct TokioTimer;
 
-// Use TokioSleep to get tokio::time::Sleep to implement Unpin.
-// see https://docs.rs/tokio/latest/tokio/time/struct.Sleep.html
-pin_project! {
-    #[derive(Debug)]
-    struct TokioSleep {
-        #[pin]
-        inner: tokio::time::Sleep,
-    }
-}
+
+
 
 // ===== impl TokioExecutor =====
 
@@ -49,36 +38,6 @@ impl TokioExecutor {
     }
 }
 
-impl Timer for TokioTimer {
-    fn sleep(&self, duration: Duration) -> Pin<Box<dyn Sleep>> {
-        Box::pin(TokioSleep {
-            inner: tokio::time::sleep(duration),
-        })
-    }
-
-    fn sleep_until(&self, deadline: Instant) -> Pin<Box<dyn Sleep>> {
-        Box::pin(TokioSleep {
-            inner: tokio::time::sleep_until(deadline.into()),
-        })
-    }
-
-    fn reset(&self, sleep: &mut Pin<Box<dyn Sleep>>, new_deadline: Instant) {
-        if let Some(sleep) = sleep.as_mut().downcast_mut_pin::<TokioSleep>() {
-            sleep.reset(new_deadline)
-        }
-    }
-
-    fn now(&self) -> Instant {
-        tokio::time::Instant::now().into()
-    }
-}
-
-impl TokioTimer {
-    /// Create a new TokioTimer
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 impl Future for TokioSleep {
     type Output = ();
@@ -88,13 +47,6 @@ impl Future for TokioSleep {
     }
 }
 
-impl Sleep for TokioSleep {}
-
-impl TokioSleep {
-    fn reset(self: Pin<&mut Self>, deadline: Instant) {
-        self.project().inner.as_mut().reset(deadline.into());
-    }
-}
 
 pub struct TokioSocket(pub tokio::net::UdpSocket);
 
