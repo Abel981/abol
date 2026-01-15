@@ -13,7 +13,7 @@ license = { workspace = true }
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.87"
 license = "MIT"
 authors = ["Abel W. Shimeles <abel.wen0@gmail.com>"]
 repository = "https://github.com/Abel981/abol"
