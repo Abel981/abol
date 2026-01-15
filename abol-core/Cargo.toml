@@ -1,7 +1,8 @@
 [package]
 name = "abol-core"
 version = "0.1.0"
-publish = false 
+publish = true 
+description = "Core data structures and protocol logic for the Abol RADIUS framework."
 edition = { workspace = true }
 authors = { workspace = true }
 license = { workspace = true }
