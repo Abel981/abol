@@ -31,7 +31,6 @@ members = [
 ]
 
 [workspace.dependencies]
-# Internal workspace members
 abol-core = { path = "abol-core" }
 abol-parser = { path = "abol-parser" }
 abol-codegen = { path = "abol-codegen" }
@@ -39,7 +38,6 @@ abol-util = { path = "abol-util" }
 rt = { path = "rt" }
 server = { path = "server" }
 
-# External dependencies
 anyhow = "1.0"
 thiserror = "2.0"
 byteorder = "1.5"
@@ -52,8 +50,6 @@ heck = "0.5"
 moka = { version = "0.12", features = ["future"] }
 zeroize = "1.8"
 dashmap = "6.1"
-tokio = { version = "1", features = ["full"] }
-smol = { version = "2" }
 
 [dependencies]
 rt = { workspace = true }
@@ -62,8 +58,8 @@ abol-codegen = { workspace = true }
 server = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true }
-smol = { workspace = true }
+tokio = { version = "1", features = ["full"] }
+smol = { version = "2" }
 abol-util = { workspace = true }
 bytes = "1.11"
 

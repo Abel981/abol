@@ -71,6 +71,33 @@ gateway from memory corruption and buffer overflows.
 
 ------------------------------------------------------------------------
 
+## 🚀 Performance
+
+Abol is engineered for high-concurrency environments. Below are the results of a benchmark conducted on a standard development machine using `radperf`.
+
+> **Test Environment**
+> - **OS:** Kali GNU/Linux 2025.3 (Kernel 6.17.10)
+> - **CPU:** Intel® Core™ i7-8850H @ 2.60GHz (12 Cores)
+> - **RAM:** 32 GiB DDR4
+> - **Platform:** Wayland / KDE Plasma 6.3.6
+
+**Benchmark Command:**
+```bash
+radperf -d . -f test_users.csv -a pap -s -c 100000 -p 150 127.0.0.1 auth testing123
+```
+
+<div align="center">
+
+| Metric | Result |
+| :--- | :--- |
+| **Throughput** | <code>🚀 34,141 packets/s</code> |
+| **Success Rate** | <code>✅ 100% (0 failures)</code> |
+| **Latency** | <code>⏱️ < 10ms (93.5% of reqs)</code> |
+| **Total Workload** | <code>📦 100,000 requests</code> |
+| **Execution Time** | <code>⏳ 2.92 seconds</code> |
+
+</div>
+
 ## 📚 Dictionaries & Vendor Support
 
 ### Supported RFCs
@@ -146,12 +173,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match request.packet.get_user_password() {
             Some(p) if p.as_bytes() == b"supersecretpassword" => {
-                let mut res = request.packet.create_response(Code::AccessAccept);
+                let mut res = request.packet.create_response_packet(Code::AccessAccept);
                 res.set_reply_message(format!("Hello {}, access granted!", name));
                 Ok(Response { packet: res })
             }
             _ => {
-                let res = request.packet.create_response(Code::AccessReject);
+                let res = request.packet.create_response_packet(Code::AccessReject);
                 Ok(Response { packet: res })
             }
         }

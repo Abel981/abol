@@ -444,7 +444,7 @@ impl Packet {
         self.set_vsa_attribute(v_id, v_type, value_bytes);
     }
 
-    pub fn create_response(&self, code: Code) -> Packet {
+    pub fn create_response_packet(&self, code: Code) -> Packet {
         Packet {
             code,
             identifier: self.identifier,

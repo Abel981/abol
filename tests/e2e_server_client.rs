@@ -62,7 +62,7 @@ async fn test_access_request_e2e() {
             Code::AccessReject
         };
         Ok(Response {
-            packet: request.packet.create_response(code),
+            packet: request.packet.create_response_packet(code),
         })
     });
 
