@@ -1,6 +1,4 @@
-pub mod server {
-    pub use server::*;
-}
+pub use server;
 
 pub mod core {
     pub use abol_core::{Cidr, Code, Request, Response, packet::Packet};

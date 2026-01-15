@@ -2,7 +2,11 @@
 name = "server-fuzz"
 version = "0.0.0"
 publish = false
-edition = "2024"
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+repository = { workspace = true }
 
 [package.metadata]
 cargo-fuzz = true
@@ -11,7 +15,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 abol-core = { workspace = true }
 abol-codegen = { workspace = true }
-bytes = "1.11.0"
+bytes = { workspace = true }
 
 
 [[bin]]

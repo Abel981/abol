@@ -16,8 +16,15 @@ use std::task::Poll;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
+pub type SecretResult = Result<Vec<(Cidr, Vec<u8>)>, BoxError>;
 
 type HandlerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+
+type SecretBytes = Arc<[u8]>;
+type SecretEntry = (Cidr, SecretBytes);
+type SecretList = Vec<SecretEntry>;
+type SharedSecrets = Arc<SecretList>;
+type SecretCache = Cache<(), SharedSecrets>;
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub(crate) struct RequestKey {
@@ -48,11 +55,11 @@ pub trait SecretSource: Send + Sync + 'static {
 }
 
 pub trait SecretSourceExt: Send + Sync + 'static {
-    fn get_all_secrets_boxed(&self) -> BoxFuture<'_, Result<Vec<(Cidr, Vec<u8>)>, BoxError>>;
+    fn get_all_secrets_boxed(&self) -> BoxFuture<'_, SecretResult>;
 }
 
 impl<T: SecretSource> SecretSourceExt for T {
-    fn get_all_secrets_boxed(&self) -> BoxFuture<'_, Result<Vec<(Cidr, Vec<u8>)>, BoxError>> {
+    fn get_all_secrets_boxed(&self) -> BoxFuture<'_, SecretResult> {
         Box::pin(self.get_all_secrets())
     }
 }
@@ -72,7 +79,7 @@ impl<T: SecretProvider> SecretProviderExt for T {
 }
 
 pub struct SecretManager {
-    cache: Cache<(), Arc<Vec<(Cidr, Arc<[u8]>)>>>,
+    cache: SecretCache,
     source: Arc<dyn SecretSourceExt>,
 }
 

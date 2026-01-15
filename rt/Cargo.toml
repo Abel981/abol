@@ -1,12 +1,15 @@
 [package]
 name = "rt"
 version = "0.1.0"
-edition = "2024"
-license = "MIT"
-
+publish = false 
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+repository = { workspace = true }
 
 [dependencies]
 async-trait = "0.1.88"
-anyhow = "1.0"
-futures = "0.3.31"
+anyhow = { workspace = true }
+
 

@@ -68,12 +68,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let runtime = SmolRuntime::new();
         let socket = runtime.bind(addr).await?;
 
-        
         // 4. Create and start the server
         let server = Server::new(runtime, socket, secret_manager, handler);
-        
+
         server.listen_and_serve().await?;
-        println!("RADIUS server (Smol) listening on {}", addr);
+        println!("Abol (Smol) listening on {}", addr);
 
         Ok(())
     })

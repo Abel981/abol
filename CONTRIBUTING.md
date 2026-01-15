@@ -75,7 +75,7 @@ If it hasn't:
 ### Fork and Clone
 
 ``` bash
-git clone https://github.com/youruser/abol.git
+git clone https://github.com/Abel981/abol.git
 cd abol
 ```
 

@@ -7,7 +7,6 @@ use async_trait::async_trait;
 
 use crate::net::AsyncUdpSocket;
 pub mod net;
-pub mod timer;
 /// A trait defining the asynchronous execution and networking environment.
 ///
 /// This trait abstracts over different async runtimes (e.g., Tokio, Smol),

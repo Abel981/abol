@@ -1,8 +1,12 @@
 [package]
 name = "abol-parser"
 version = "0.1.0"
-edition = "2024"
-license = "MIT"
+publish = false 
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+repository = { workspace = true }
 
 [dependencies]
 anyhow = { workspace = true }

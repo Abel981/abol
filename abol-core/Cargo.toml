@@ -1,9 +1,12 @@
 [package]
 name = "abol-core"
 version = "0.1.0"
-edition = "2024"
 publish = false 
-license = "MIT"
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+repository = { workspace = true }
 
 [dependencies]
 rand = { workspace = true }
@@ -12,5 +15,4 @@ byteorder = { workspace = true }
 md-5 = { workspace = true }
 zeroize = { workspace = true }
 bytes = { workspace = true }
-[profile.release]
-debug = true
+

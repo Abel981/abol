@@ -1,5 +1,3 @@
-#![deny(warnings)]
-
 use abol::codegen::rfc2865::Rfc2865Ext;
 use abol::core::{Cidr, Code, Request, Response};
 use abol::rt::Runtime;
@@ -69,12 +67,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = TokioRuntime::new();
     let socket = runtime.bind(addr).await?;
 
-    
     // 4. Create and start the server
     let server = Server::new(runtime, socket, secret_manager, handler);
-    
+
     server.listen_and_serve().await?;
-    println!("RADIUS server (Tokio) listening on {}", addr);
+    println!("Abol (Tokio) listening on {}", addr);
 
     Ok(())
 }
