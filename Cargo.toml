@@ -5,7 +5,6 @@ description = "A high-performance, asynchronous, dictionary-driven RADIUS framew
 readme = "README.md"
 keywords = ["async", "radius"]
 categories = ["network-programming", "authentication", "encoding"]
-
 edition = { workspace = true }
 rust-version = { workspace = true }
 authors = { workspace = true }
@@ -21,8 +20,8 @@ repository = "https://github.com/Abel981/abol"
 [workspace]
 resolver = "3"
 members = [
-    "server", 
-    "rt", 
+    "abol-server", 
+    "abol-rt", 
     "abol-core", 
     "abol-parser", 
     "abol-codegen",
@@ -34,8 +33,8 @@ members = [
 abol-core = {version = "0.1.0", path = "abol-core" }
 abol-parser = {version = "0.1.0", path = "abol-parser" }
 abol-codegen = {version = "0.1.0", path = "abol-codegen" }
-rt = {version = "0.1.0", path = "rt" }
-server = {version = "0.1.0", path = "server" }
+abol-rt = {version = "0.1.0", path = "abol-rt" }
+abol-server = {version = "0.1.0", path = "abol-server" }
 
 anyhow = "1.0"
 thiserror = "2.0"
@@ -51,15 +50,15 @@ zeroize = "1.8"
 dashmap = "6.1"
 
 [dependencies]
-rt = { workspace = true }
+abol-rt = { workspace = true }
 abol-core = { workspace = true }
 abol-codegen = { workspace = true }
-server = { workspace = true }
+abol-server = { workspace = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 smol = { version = "2" }
-abol-util = {path = "./abol-util" }
+abol-util = {version = "0.1.0", path = "./abol-util" }
 bytes = "1.11"
 
 [features]

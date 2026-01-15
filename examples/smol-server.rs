@@ -1,8 +1,8 @@
 use abol::codegen::rfc2865::Rfc2865Ext;
 use abol::core::{Cidr, Code, Request, Response};
-use abol::server::{HandlerFn, SecretManager, SecretSource, Server};
+use abol::rt::Runtime;
+use abol::server::{BoxError, HandlerFn, SecretManager, SecretSource, Server};
 use abol_util::rt::smol::SmolRuntime;
-use rt::Runtime;
 use std::net::SocketAddr;
 use std::sync::Arc;
 /// A simple static source for RADIUS shared secrets.
@@ -17,7 +17,7 @@ pub struct StaticSecretSource {
 
 impl SecretSource for StaticSecretSource {
     /// Tells the server to use the same secret for the entire internet.
-    async fn get_all_secrets(&self) -> Result<Vec<(Cidr, Vec<u8>)>, server::BoxError> {
+    async fn get_all_secrets(&self) -> Result<Vec<(Cidr, Vec<u8>)>, BoxError> {
         // Define a "Catch-All" range.
         // 0.0.0.0 with a prefix of 0 matches ANY incoming IPv4 address.
         let cidr = Cidr {
@@ -40,7 +40,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             secret: b"testing123".to_vec(),
         });
         let secret_manager = SecretManager::new(source, 3600);
-
         // 2. Define the Request Handler
         let handler = HandlerFn(|request: Request| async move {
             let name = request

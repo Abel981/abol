@@ -7,9 +7,9 @@ use std::time::Duration;
 use tokio::net::UdpSocket as TokioUdpSocket;
 
 // 1. IMPORTANT: Import the trait to make .local_addr() work
+use abol_rt::net::AsyncUdpSocket;
+use abol_rt::{Executor, Runtime};
 use abol_util::rt::tokio::TokioRuntime;
-use rt::net::AsyncUdpSocket;
-use rt::{Executor, Runtime};
 
 // RADIUS Protocol imports
 use abol_codegen::rfc2865::Rfc2865Ext;
@@ -18,7 +18,7 @@ use abol_core::packet::Packet;
 use abol_core::{Cidr, Code, Request, Response};
 
 // Server crate imports
-use server::{BoxError, HandlerFn, SecretManager, SecretSource, Server};
+use abol_server::{BoxError, HandlerFn, SecretManager, SecretSource, Server};
 
 /// Mock provider for the shared secret
 struct MySecretProvider;

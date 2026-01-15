@@ -1,7 +1,7 @@
 use abol::codegen::rfc2865::Rfc2865Ext;
 use abol::core::{Cidr, Code, Request, Response};
 use abol::rt::Runtime;
-use abol::server::{HandlerFn, SecretManager, SecretSource, Server};
+use abol::server::{BoxError, HandlerFn, SecretManager, SecretSource, Server};
 use abol_util::rt::tokio::TokioRuntime;
 
 use std::net::SocketAddr;
@@ -18,7 +18,7 @@ pub struct StaticSecretSource {
 
 impl SecretSource for StaticSecretSource {
     /// Tells the server to use the same secret for the entire internet.
-    async fn get_all_secrets(&self) -> Result<Vec<(Cidr, Vec<u8>)>, server::BoxError> {
+    async fn get_all_secrets(&self) -> Result<Vec<(Cidr, Vec<u8>)>, BoxError> {
         // Define a "Catch-All" range.
         // 0.0.0.0 with a prefix of 0 matches ANY incoming IPv4 address.
         let cidr = Cidr {
