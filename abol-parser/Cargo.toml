@@ -2,6 +2,7 @@
 name = "abol-parser"
 version = "0.1.0"
 publish = true 
+description = "A fast packet parser for the RADIUS protocol."
 edition = { workspace = true }
 authors = { workspace = true }
 license = { workspace = true }
