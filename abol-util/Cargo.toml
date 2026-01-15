@@ -1,6 +1,7 @@
 [package]
 name = "abol-util"
 version = "0.1.0"
+description = "Utilities and runtime implementations for the Abol RADIUS framework."
 
 edition = { workspace = true }
 authors = { workspace = true }
