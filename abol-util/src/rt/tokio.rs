@@ -9,17 +9,13 @@ use std::{
 
 use async_trait::async_trait;
 use pin_project_lite::pin_project;
-use rt::timer::{Sleepr};
+use rt::timer::Sleepr;
 use rt::{Executor, Runtime, net::AsyncUdpSocket};
 
 /// Future executor that utilises `tokio` threads.
 #[non_exhaustive]
 #[derive(Default, Debug, Clone)]
 pub struct TokioExecutor {}
-
-
-
-
 
 // ===== impl TokioExecutor =====
 
@@ -38,7 +34,6 @@ impl TokioExecutor {
     }
 }
 
-
 impl Future for TokioSleep {
     type Output = ();
 
@@ -46,7 +41,6 @@ impl Future for TokioSleep {
         self.project().inner.poll(cx)
     }
 }
-
 
 pub struct TokioSocket(pub tokio::net::UdpSocket);
 
