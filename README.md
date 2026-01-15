@@ -139,9 +139,7 @@ pub struct StaticSecretSource {
 
 impl SecretSource for StaticSecretSource {
     /// Tells the server to use the same secret for the entire internet.
-    async fn get_all_secrets(
-        &self,
-    ) -> Result<Vec<(Cidr, Vec<u8>)>, Box<dyn std::error::Error + Send + Sync>> {
+      async fn get_all_secrets(&self) -> Result<Vec<(Cidr, Vec<u8>)>, server::BoxError> {
         // Define a "Catch-All" range.
         // 0.0.0.0 with a prefix of 0 matches ANY incoming IPv4 address.
         let cidr = Cidr {
