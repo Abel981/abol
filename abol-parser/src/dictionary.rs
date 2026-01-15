@@ -114,7 +114,6 @@ pub enum AttributeType {
     Ipv6Addr,
     Ipv6Prefix,
     InterfaceId,
-    //todo check unknown type and add all attributes
     Unknown(String),
 }
 #[derive(Debug, PartialEq, Eq, Clone)]
