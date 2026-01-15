@@ -1,5 +1,5 @@
+use abol_rt::{Executor, Runtime, net::AsyncUdpSocket};
 use async_trait::async_trait;
-use rt::{Executor, Runtime, net::AsyncUdpSocket};
 use std::net::SocketAddr;
 
 #[non_exhaustive]
