@@ -6,18 +6,18 @@ use std::net::SocketAddr;
 #[derive(Default, Debug, Clone)]
 pub struct SmolExecutor {}
 
+impl SmolExecutor {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 impl Executor for SmolExecutor {
     fn execute<Fut>(&self, fut: Fut)
     where
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         smol::spawn(fut).detach();
-    }
-}
-impl SmolExecutor {
-    /// Create new executor that relies on [`tokio::spawn`] to execute futures.
-    pub fn new() -> Self {
-        Self {}
     }
 }
 
@@ -38,16 +38,14 @@ impl AsyncUdpSocket for SmolSocket {
     }
 }
 
+#[derive(Default, Debug, Clone)]
 pub struct SmolRuntime {
     executor: SmolExecutor,
 }
 
 impl SmolRuntime {
-    /// Create a new TokioRuntime with its executor.
     pub fn new() -> Self {
-        Self {
-            executor: SmolExecutor::new(),
-        }
+        Self::default()
     }
 }
 
@@ -61,7 +59,6 @@ impl Runtime for SmolRuntime {
     }
 
     async fn bind(&self, addr: SocketAddr) -> std::io::Result<Self::Socket> {
-        // smol::net::UdpSocket::bind handles setting non-blocking automatically
         let socket = ::smol::net::UdpSocket::bind(addr).await?;
         Ok(SmolSocket(socket))
     }
