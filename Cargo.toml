@@ -59,7 +59,7 @@ server = { workspace = true }
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 smol = { version = "2" }
-abol-util = {path = "./abol-util", version = "0.1.0" }
+abol-util = {path = "./abol-util" }
 bytes = "1.11"
 
 [features]
