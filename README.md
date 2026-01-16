@@ -8,7 +8,7 @@
 
 ------------------------------------------------------------------------
 
-## 🚀 Quick Start
+##  Quick Start
 
 ``` toml
 [dependencies]
@@ -19,7 +19,7 @@ tokio = { version = "1.0", features = ["full"] }
 
 ------------------------------------------------------------------------
 
-## 📖 What is Abol?
+##  What is Abol?
 
 **Abol** is a high-performance, asynchronous **RADIUS server framework**
 written in Rust.
@@ -34,7 +34,7 @@ without sacrificing ergonomics.
 
 ------------------------------------------------------------------------
 
-## ☕ What's in a Name?
+##  What's in a Name?
 
 In the traditional Ethiopian coffee ceremony, **Abol** is the **first
 round of brewing**.
@@ -47,31 +47,31 @@ connection point for your network authentication infrastructure.
 
 ------------------------------------------------------------------------
 
-## ⚡ Why Abol?
+## Why Abol?
 
-### 🚀 Runtime-Agnostic Core
+### Runtime-Agnostic Core
 
 Optimized for high performance while remaining compatible with multiple
 async runtimes, including **Tokio** and **Smol**.
 
-### 🧠 Zero-Cost Abstractions
+### Zero-Cost Abstractions
 
 Leverages Rust's type system and traits to provide **type-safe attribute
 access** with zero runtime overhead.
 
-### 📚 Dictionary-Driven Design
+### Dictionary-Driven Design
 
 Automatically generate Rust traits and helpers from standard RADIUS
 dictionary files at **build time**.
 
-### 🛡 Memory Safety by Default
+### Memory Safety by Default
 
 Implemented **100% in safe Rust**, protecting your authentication
 gateway from memory corruption and buffer overflows.
 
 ------------------------------------------------------------------------
 
-## 🚀 Performance
+## Performance
 
 Abol is engineered for high-concurrency environments. Below are the results of a benchmark conducted on a standard development machine using `radperf`.
 
@@ -90,15 +90,15 @@ radperf -d . -f test_users.csv -a pap -s -c 100000 -p 150 127.0.0.1 auth testing
 
 | Metric | Result |
 | :--- | :--- |
-| **Throughput** | <code>🚀 34,141 packets/s</code> |
-| **Success Rate** | <code>✅ 100% (0 failures)</code> |
-| **Latency** | <code>⏱️ < 10ms (93.5% of reqs)</code> |
-| **Total Workload** | <code>📦 100,000 requests</code> |
-| **Execution Time** | <code>⏳ 2.92 seconds</code> |
+| **Throughput** | <code> 34,141 packets/s</code> |
+| **Success Rate** | <code> 100% (0 failures)</code> |
+| **Latency** | <code> < 10ms (93.5% of reqs)</code> |
+| **Total Workload** | <code> 100,000 requests</code> |
+| **Execution Time** | <code> 2.92 seconds</code> |
 
 </div>
 
-## 📚 Dictionaries & Vendor Support
+##  Dictionaries & Vendor Support
 
 ### Supported RFCs
 
@@ -116,7 +116,7 @@ radperf -d . -f test_users.csv -a pap -s -c 100000 -p 150 127.0.0.1 auth testing
 
 ------------------------------------------------------------------------
 
-## 🧪 Example: Simple Authentication Server
+##  Example: Simple Authentication Server
 
 ``` rust
 use abol::codegen::rfc2865::Rfc2865Ext;
@@ -199,7 +199,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ------------------------------------------------------------------------
 
-## 🏃 Running the Examples
+##  Running the Examples
 
 ### Tokio
 
@@ -215,7 +215,7 @@ cargo run --release --example smol-server --features smol
 
 ------------------------------------------------------------------------
 
-## 📂 Project Architecture
+##  Project Architecture
 
  **abol-core** -- Packet encoding/decoding and trait definitions\
 -   **abol-server** -- Async network layer (multi-runtime compatible)\
@@ -225,12 +225,12 @@ cargo run --release --example smol-server --features smol
 
 ------------------------------------------------------------------------
 
-## 🗺 Roadmap
+##  Roadmap
 
 -   [ ] RADIUS Client implementation
 
 ------------------------------------------------------------------------
-## ⚖️ License
+##  License
 
 Licensed under either of:
 
@@ -242,9 +242,5 @@ at your option.
 ### Contribution
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
 
-<p align="center">
 
-Crafted with ☕ in the spirit of the first brew.
-
-</p>
 

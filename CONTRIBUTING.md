@@ -1,4 +1,4 @@
-# ☕ Contributing to Abol
+# Contributing to Abol
 
 First off, thank you for considering contributing to **Abol**!\
 It's people like you that make the Rust ecosystem such a great place to
@@ -9,7 +9,7 @@ This guide follows best practices established by projects like
 
 ------------------------------------------------------------------------
 
-## 📑 Table of Contents
+##  Table of Contents
 
 -   [Code of Conduct](#-code-of-conduct)
 -   [How Can I Contribute?](#-how-can-i-contribute)
@@ -22,7 +22,7 @@ This guide follows best practices established by projects like
 
 ------------------------------------------------------------------------
 
-## 🤝 Code of Conduct
+##  Code of Conduct
 
 By participating in this project, you agree to abide by the **[Rust Code
 of Conduct](https://www.rust-lang.org/policies/code-of-conduct)**.
@@ -32,9 +32,9 @@ environment** for everyone.
 
 ------------------------------------------------------------------------
 
-## 🛠 How Can I Contribute?
+##  How Can I Contribute?
 
-### 🐞 Reporting Bugs
+###  Reporting Bugs
 
 Before reporting a bug:
 
@@ -50,7 +50,7 @@ If it hasn't:
 
 ------------------------------------------------------------------------
 
-### 💡 Suggesting Enhancements
+###  Suggesting Enhancements
 
 -   Open an issue with the **`enhancement`** label
 -   Clearly explain the **motivation**
@@ -59,7 +59,7 @@ If it hasn't:
 
 ------------------------------------------------------------------------
 
-### 🔧 Submitting Pull Requests
+###  Submitting Pull Requests
 
 -   **Small fixes**\
     You're welcome to submit a PR directly.
@@ -70,7 +70,7 @@ If it hasn't:
 
 ------------------------------------------------------------------------
 
-## 🧰 Development Environment
+##  Development Environment
 
 ### Fork and Clone
 
@@ -96,7 +96,7 @@ rustup component add rustfmt
 
 ------------------------------------------------------------------------
 
-## 🔁 Pull Request Process
+##  Pull Request Process
 
 1.  Create a new branch:
 
@@ -116,37 +116,28 @@ rustup component add rustfmt
 
 4.  Update `README.md` or documentation if public APIs changed
 
-5.  Open the Pull Request and wait for review 🚀
+5.  Open the Pull Request and wait for review 
 
 ------------------------------------------------------------------------
 
-## 🧹 Coding Style
+##  Coding Style
 
--   🦀 **Idiomatic Rust**\
+-   **Idiomatic Rust**\
     Follow the [Rust API
     Guidelines](https://rust-lang.github.io/api-guidelines/)
 
--   📚 **Documentation**\
+-    **Documentation**\
     All public modules, structs, and functions must have doc comments
     (`///`)\
     Include examples where possible
 
--   🔐 **Safety**\
+-   **Safety**\
     Avoid `unsafe` unless strictly necessary\
     If used, clearly document safety invariants
 
--   ⚠️ **Error Handling**
+-   **Error Handling**
 
     -   Use `thiserror` for library-internal errors
     -   Use `anyhow` for application-level or server logic
 
-------------------------------------------------------------------------
-
-
-<p align="center">
-
- <b>☕Happy Brewing!</b><br/>If you have
-questions, feel free to reach out via GitHub issues.
-
-</p>
 
