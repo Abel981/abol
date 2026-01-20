@@ -109,7 +109,7 @@ rustup component add rustfmt
 3.  Run the full quality gate:
 
     ``` bash
-    cargo fmt --all -- --check
+    cargo fmt --all --check
     cargo clippy -- -D warnings
     cargo test
     ```

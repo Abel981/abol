@@ -34,18 +34,6 @@ without sacrificing ergonomics.
 
 ------------------------------------------------------------------------
 
-##  What's in a Name?
-
-In the traditional Ethiopian coffee ceremony, **Abol** is the **first
-round of brewing**.
-
-It is the strongest, most potent, and most important cup ---
-representing clarity, connection, and readiness.
-
-Like its namesake, **Abol** serves as the primary and reliable
-connection point for your network authentication infrastructure.
-
-------------------------------------------------------------------------
 
 ## Why Abol?
 
