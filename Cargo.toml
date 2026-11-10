@@ -48,6 +48,7 @@ heck = "0.5"
 moka = { version = "0.12", features = ["future"] }
 zeroize = "1.8"
 dashmap = "6.1"
+subtle = "2.6"
 
 [dependencies]
 abol-rt = { workspace = true }
