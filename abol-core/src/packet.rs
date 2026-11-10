@@ -221,7 +221,7 @@ impl Packet {
                 let calculated_bytes: [u8; 16] = calculated_hash.into();
 
                 // The authenticator field in the Packet struct should hold the value received from the client.
-                calculated_bytes == self.authenticator
+                calculated_bytes.ct_eq(&self.authenticator).into()
             }
 
             _ => false,
