@@ -16,4 +16,5 @@ byteorder = { workspace = true }
 md-5 = { workspace = true }
 zeroize = { workspace = true }
 bytes = { workspace = true }
+subtle = { workspace = true }
 

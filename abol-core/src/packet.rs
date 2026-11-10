@@ -4,6 +4,7 @@ use md5::{Digest, Md5};
 use rand::Rng;
 use rand::RngCore;
 use std::sync::Arc;
+use subtle::ConstantTimeEq;
 use thiserror::Error;
 use zeroize::Zeroize;
 
@@ -224,6 +225,113 @@ impl Packet {
             }
 
             _ => false,
+        }
+    }
+
+    /// Verifies the Response Authenticator of a raw RADIUS response.
+    ///
+    /// Recomputes `MD5(Code | ID | Length | RequestAuth | Attributes | Secret)`
+    /// as defined in RFC 2865 section 3 (and reused by RFC 2866 and RFC 5176)
+    /// over the received bytes and compares it with the authenticator in the
+    /// header. Octets beyond the header's Length field are treated as padding
+    /// and ignored. The final comparison runs in constant time so that response
+    /// timing reveals nothing about how many authenticator bytes matched.
+    ///
+    /// # Arguments
+    ///
+    /// * `raw` - The response exactly as received from the network.
+    /// * `request` - The request this response answers. Its `secret` and
+    ///   `identifier` are used, along with the Request Authenticator that was
+    ///   sent on the wire. For [`Code::AccountingRequest`],
+    ///   [`Code::DisconnectRequest`] and [`Code::CoARequest`] that
+    ///   authenticator is recomputed from the request's contents.
+    ///
+    /// # Returns
+    ///
+    /// `true` only if `raw` is a well-formed response packet whose identifier
+    /// matches `request` and whose authenticator is valid for the shared
+    /// secret. Returns `false` for anything else, including an empty secret.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use abol_core::{Code, attribute::Attributes, packet::Packet};
+    /// let request = Packet {
+    ///     code: Code::AccessRequest,
+    ///     identifier: 7,
+    ///     authenticator: [0x11; 16],
+    ///     attributes: Attributes::default(),
+    ///     secret: Arc::from(&b"shared-secret"[..]),
+    /// };
+    /// let raw = request
+    ///     .create_response_packet(Code::AccessAccept)
+    ///     .encode()
+    ///     .unwrap();
+    ///
+    /// assert!(Packet::verify_response(&raw, &request));
+    /// ```
+    #[must_use]
+    pub fn verify_response(raw: &[u8], request: &Packet) -> bool {
+        if request.secret.is_empty() || !(20..=MAX_PACKET_SIZE).contains(&raw.len()) {
+            return false;
+        }
+
+        let length = u16::from_be_bytes([raw[2], raw[3]]) as usize;
+        if !(20..=raw.len()).contains(&length) {
+            return false;
+        }
+        let raw = &raw[..length];
+
+        if raw[1] != request.identifier {
+            return false;
+        }
+
+        let is_response = matches!(
+            Code::try_from(raw[0]),
+            Ok(Code::AccessAccept
+                | Code::AccessReject
+                | Code::AccessChallenge
+                | Code::AccountingResponse
+                | Code::DisconnectAck
+                | Code::DisconnectNak
+                | Code::CoAACK
+                | Code::CoANAK)
+        );
+        if !is_response {
+            return false;
+        }
+
+        let Some(request_auth) = request.sent_authenticator() else {
+            return false;
+        };
+
+        let mut hasher = Md5::new();
+        hasher.update(&raw[0..4]);
+        hasher.update(request_auth);
+        hasher.update(&raw[20..]);
+        hasher.update(&*request.secret);
+        let expected = hasher.finalize();
+
+        expected[..].ct_eq(&raw[4..20]).into()
+    }
+
+    /// Returns the Request Authenticator as it appeared on the wire.
+    fn sent_authenticator(&self) -> Option<[u8; 16]> {
+        match self.code {
+            Code::AccessRequest | Code::StatusServer => Some(self.authenticator),
+
+            // `encode` computes these authenticators into its output only and
+            // leaves `self.authenticator` unchanged. The computation is
+            // deterministic, so re-encoding yields the value that was sent.
+            Code::AccountingRequest | Code::DisconnectRequest | Code::CoARequest => {
+                let encoded = self.encode().ok()?;
+                let mut auth = [0u8; 16];
+                auth.copy_from_slice(&encoded[4..20]);
+                Some(auth)
+            }
+
+            _ => None,
         }
     }
 
@@ -595,5 +703,103 @@ mod tests {
 
         let decrypted_p1 = enc1[0] ^ b1[0];
         assert_eq!(decrypted_p1, b'p');
+    }
+
+    /// Builds an Access-Request and the encoded Access-Accept answering it.
+    fn access_exchange(secret: &[u8]) -> (Packet, Vec<u8>) {
+        let mut request = Packet::new(Code::AccessRequest, Arc::from(secret));
+        request.identifier = 9;
+        request.authenticator = [0x11; 16];
+
+        let mut response = request.create_response_packet(Code::AccessAccept);
+        response.set_attribute(18, Bytes::from_static(b"Welcome"));
+        let raw = response.encode().unwrap();
+        (request, raw)
+    }
+
+    // A genuine Access-Accept with attributes verifies.
+    #[test]
+    fn verify_response_access_accept_valid() {
+        let (request, raw) = access_exchange(b"secret");
+        assert!(Packet::verify_response(&raw, &request));
+    }
+
+    // For Accounting-Request the stale `authenticator` field of a locally
+    // built request is ignored in favor of the authenticator actually sent.
+    #[test]
+    fn verify_response_accounting_uses_sent_authenticator() {
+        let secret: Arc<[u8]> = Arc::from(&b"secret"[..]);
+        let request = Packet::new(Code::AccountingRequest, Arc::clone(&secret));
+        let sent = Bytes::from(request.encode().unwrap());
+
+        let received = Packet::parse_packet(sent, Arc::clone(&secret)).unwrap();
+        assert_ne!(received.authenticator, request.authenticator);
+        let raw = received
+            .create_response_packet(Code::AccountingResponse)
+            .encode()
+            .unwrap();
+
+        assert!(Packet::verify_response(&raw, &request));
+    }
+
+    // A response signed with a different secret is rejected.
+    #[test]
+    fn verify_response_wrong_secret() {
+        let (_, raw) = access_exchange(b"server-secret");
+        let (request, _) = access_exchange(b"client-secret");
+        assert!(!Packet::verify_response(&raw, &request));
+    }
+
+    // Changing an attribute byte or an authenticator byte is detected.
+    #[test]
+    fn verify_response_tampered() {
+        let (request, raw) = access_exchange(b"secret");
+
+        let mut bad_attr = raw.clone();
+        *bad_attr.last_mut().unwrap() ^= 0x01;
+        assert!(!Packet::verify_response(&bad_attr, &request));
+
+        let mut bad_auth = raw;
+        bad_auth[19] ^= 0x01;
+        assert!(!Packet::verify_response(&bad_auth, &request));
+    }
+
+    // A response whose identifier differs from the request is rejected.
+    #[test]
+    fn verify_response_identifier_mismatch() {
+        let (mut request, raw) = access_exchange(b"secret");
+        request.identifier = request.identifier.wrapping_add(1);
+        assert!(!Packet::verify_response(&raw, &request));
+    }
+
+    // Short buffers and header lengths exceeding the buffer are rejected.
+    #[test]
+    fn verify_response_bad_length() {
+        let (request, raw) = access_exchange(b"secret");
+        assert!(!Packet::verify_response(&raw[..19], &request));
+        assert!(!Packet::verify_response(&raw[..raw.len() - 1], &request));
+    }
+
+    // Octets beyond the header's Length field are padding and ignored.
+    #[test]
+    fn verify_response_ignores_trailing_padding() {
+        let (request, mut raw) = access_exchange(b"secret");
+        raw.extend_from_slice(&[0xAA; 4]);
+        assert!(Packet::verify_response(&raw, &request));
+    }
+
+    // A packet with a request code is never accepted as a response.
+    #[test]
+    fn verify_response_rejects_non_response_code() {
+        let (request, _) = access_exchange(b"secret");
+        let raw = request.encode().unwrap();
+        assert!(!Packet::verify_response(&raw, &request));
+    }
+
+    // Verification fails closed when no shared secret is configured.
+    #[test]
+    fn verify_response_empty_secret() {
+        let (request, raw) = access_exchange(b"");
+        assert!(!Packet::verify_response(&raw, &request));
     }
 }

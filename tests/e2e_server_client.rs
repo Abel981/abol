@@ -103,6 +103,10 @@ async fn test_access_request_e2e() {
         Packet::parse_packet(Bytes::copy_from_slice(&buf[..len]), shared_secret).unwrap();
 
     // --- ASSERTIONS ---
+    assert!(
+        Packet::verify_response(&buf[..len], &req_packet),
+        "Response authenticator must be valid"
+    );
     assert_eq!(
         response.code,
         Code::AccessAccept,
